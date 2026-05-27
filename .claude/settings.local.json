@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem \"C:\\\\Users\\\\PaulitosPlay\\\\Desktop\\\\FinAI\" -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object Name, Length, LastWriteTime)",
+      "Bash(ls -la /mnt/c/Users/PaulitosPlay/Desktop/FinAI/ 2>/dev/null || echo \"EMPTY_DIR\")",
+      "PowerShell(Get-Command node -ErrorAction SilentlyContinue)",
+      "PowerShell($env:PATH)",
+      "Bash(npm --version)",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"User\"\\); & \"C:\\\\Program Files\\\\nodejs\\\\node.exe\" --version; & \"C:\\\\Program Files\\\\nodejs\\\\npm.cmd\" --version)",
+      "PowerShell(Start-Sleep -Seconds 8; try { $response = Invoke-WebRequest -Uri \"http://localhost:3000\" -TimeoutSec 5 -ErrorAction Stop; \"Status: $\\($response.StatusCode\\)\" } catch { \"Ainda iniciando... $\\($_.Exception.Message\\)\" })",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npm run *)",
+      "Bash(npm list *)",
+      "Bash(npx kill-port *)",
+      "Bash(exit 0)",
+      "Bash(ping -n 5 127.0.0.1)",
+      "Bash(netstat -ano)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('scripts:', JSON.stringify\\(p.scripts\\)\\); console.log\\('next version:', p.dependencies?.next || p.devDependencies?.next\\)\")",
+      "Bash(npx tsc *)",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ]
+  }
+}
