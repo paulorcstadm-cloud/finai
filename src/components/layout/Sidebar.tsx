@@ -6,8 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 import { useUserStorage } from '@/hooks/useUserStorage'
-import { ACCOUNTS } from '@/lib/mock-data'
-import { GABRIEL_INITIAL_ACCOUNTS } from '@/lib/users'
+import { createClient } from '@/lib/supabase/client'
 import type { Account } from '@/lib/types'
 import {
   LayoutDashboard, Landmark, TrendingUp, Users, CreditCard,
@@ -33,11 +32,11 @@ const ALL_NAV = [
 export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const pathname = usePathname()
   const router = useRouter()
-  const { user, logout, changePassword } = useAuth()
+  const { user, logout } = useAuth()
+  const supabase = createClient()
 
   // Live total balance from user accounts
-  const initialAccounts: Account[] = user?.id === 'gabriel' ? GABRIEL_INITIAL_ACCOUNTS : ACCOUNTS.map(a => ({ ...a }))
-  const [accounts] = useUserStorage<Account[]>('finai_accounts', initialAccounts)
+  const [accounts] = useUserStorage<Account[]>('finai_accounts', [])
   const totalBalance = accounts.reduce((s, a) => s + a.balance, 0)
 
   // Pulsing live dot
@@ -66,13 +65,24 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
   const [pwError, setPwError] = useState('')
   const [pwSuccess, setPwSuccess] = useState(false)
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     setPwError('')
     if (!pwForm.current || !pwForm.next || !pwForm.confirm) { setPwError('Preencha todos os campos.'); return }
     if (pwForm.next !== pwForm.confirm) { setPwError('As novas senhas não coincidem.'); return }
-    if (pwForm.next.length < 4) { setPwError('Senha muito curta (mínimo 4 caracteres).'); return }
-    const ok = changePassword(pwForm.current, pwForm.next)
-    if (!ok) { setPwError('Senha atual incorreta.'); return }
+    if (pwForm.next.length < 8) { setPwError('Senha muito curta (mínimo 8 caracteres).'); return }
+    if (!user?.email) return
+
+    // Verify current password by re-authenticating
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: pwForm.current,
+    })
+    if (signInError) { setPwError('Senha atual incorreta.'); return }
+
+    // Update to new password
+    const { error: updateError } = await supabase.auth.updateUser({ password: pwForm.next })
+    if (updateError) { setPwError('Não foi possível alterar a senha. Tente novamente.'); return }
+
     setPwSuccess(true)
     setTimeout(() => { setShowPwModal(false); setPwForm({ current: '', next: '', confirm: '' }); setPwSuccess(false) }, 1500)
   }
@@ -95,8 +105,8 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
 
   const nav = ALL_NAV.filter(n => user?.nav.includes(n.id as never) ?? true)
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     router.replace('/login')
   }
 
