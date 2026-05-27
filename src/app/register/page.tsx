@@ -72,17 +72,21 @@ export default function RegisterPage() {
     setLoading(false)
 
     if (signUpError) {
-      const m = signUpError.message.toLowerCase()
+      const m      = signUpError.message.toLowerCase()
+      const status = signUpError.status ?? 0
       const msg =
         m.includes('already registered') || m.includes('user already registered')
           ? 'Este e-mail já está cadastrado. Tente fazer login.'
           : m.includes('password should be') || m.includes('weak password')
             ? 'A senha não atende aos requisitos mínimos de segurança.'
-            : m.includes('rate limit') || m.includes('too many')
+            // Rate limit: check string AND HTTP 429 status AND "security purposes" wording
+            : m.includes('rate limit') || m.includes('too many') || m.includes('security purposes') || status === 429
               ? 'Muitas tentativas. Aguarde alguns minutos e tente novamente.'
-              : m.includes('invalid email')
+              : m.includes('invalid email') || m.includes('unable to validate')
                 ? 'E-mail inválido. Verifique e tente novamente.'
-                : 'Erro ao criar conta. Tente novamente.'
+                : m.includes('signup') && m.includes('disabled')
+                  ? 'Cadastro temporariamente desabilitado. Tente mais tarde.'
+                  : 'Erro ao criar conta. Tente novamente.'
       setError(msg)
       return
     }

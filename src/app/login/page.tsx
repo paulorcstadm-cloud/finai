@@ -39,17 +39,18 @@ function LoginForm() {
     })
 
     if (signInError) {
-      const m = signInError.message.toLowerCase()
+      const m      = signInError.message.toLowerCase()
+      const status = signInError.status ?? 0
       const msg =
-        m.includes('invalid login') || m.includes('invalid credentials')
+        m.includes('invalid login') || m.includes('invalid credentials') || m.includes('invalid email or password')
           ? 'E-mail ou senha incorretos.'
           : m.includes('email not confirmed')
             ? 'Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada (e o spam).'
-            : m.includes('too many') || m.includes('rate limit')
+            : m.includes('too many') || m.includes('rate limit') || m.includes('security purposes') || status === 429
               ? 'Muitas tentativas. Aguarde alguns minutos e tente novamente.'
-              : m.includes('network') || m.includes('fetch')
+              : m.includes('network') || m.includes('fetch') || m.includes('failed to fetch')
                 ? 'Erro de conexão. Verifique sua internet e tente novamente.'
-                : m.includes('user not found')
+                : m.includes('user not found') || m.includes('no user found')
                   ? 'E-mail não cadastrado. Verifique ou crie uma conta.'
                   : 'Erro ao entrar. Tente novamente.'
       setError(msg)
