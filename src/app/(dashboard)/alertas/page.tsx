@@ -7,7 +7,7 @@ import {
   Target, Users, Repeat, Lightbulb, AlertTriangle, CheckCircle, Info,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ALERTS } from '@/lib/mock-data'
+import { useUserStorage } from '@/hooks/useUserStorage'
 import type { Alert, AlertSeverity } from '@/lib/types'
 
 function SeverityIcon({ severity }: { severity: AlertSeverity }) {
@@ -60,7 +60,7 @@ const SEVERITY_DOT: Record<AlertSeverity, string> = {
 type Filter = 'all' | 'unread' | AlertSeverity
 
 export default function AlertasPage() {
-  const [alerts, setAlerts] = useState<Alert[]>(ALERTS)
+  const [alerts, setAlerts] = useUserStorage<Alert[]>('finai_alerts', [])
   const [filter, setFilter] = useState<Filter>('all')
 
   const filtered = alerts.filter(a => {

@@ -1,39 +1,48 @@
 'use client'
 
 import { useState } from 'react'
-import { useLocalStorage } from '@/hooks/useLocalStorage'
-import { CreditCard, AlertCircle, Plus, Pencil, Trash2, Check, X, ArrowDownRight } from 'lucide-react'
+import { useUserStorage } from '@/hooks/useUserStorage'
+import { useAuth } from '@/contexts/AuthContext'
+import { CreditCard, AlertCircle, Plus, Pencil, Trash2, Check, X, Landmark } from 'lucide-react'
 import { cn, formatCurrency, formatDate, daysUntil } from '@/lib/utils'
-import { ACCOUNTS, TRANSACTIONS } from '@/lib/mock-data'
-import type { Transaction } from '@/lib/types'
+import { ACCOUNTS } from '@/lib/mock-data'
+import { GABRIEL_INITIAL_ACCOUNTS } from '@/lib/users'
+import type { Account, Transaction } from '@/lib/types'
 
 const CATS = ['Alimentação','Transporte','Mercado','Saúde','Lazer','Moradia','Compras','Assinaturas','Utilidades','Outros']
 
 type InvoiceTx = Transaction & { _fake?: boolean }
 
-function buildInitialMap() {
-  const map: Record<string, InvoiceTx[]> = {}
-  ACCOUNTS.filter(a => a.invoiceAmount).forEach(acc => {
-    map[acc.id] = TRANSACTIONS.filter(t => t.accountId === acc.id && t.type === 'debit').slice(0, 12)
-  })
-  return map
-}
-
 export default function FaturasPage() {
-  const [activeBank, setActiveBank] = useState(ACCOUNTS.find(a => a.invoiceAmount)?.id || '')
-  const [paidBillsArr, setPaidBillsArr] = useLocalStorage<string[]>('finai_paid_bills', [])
+  const { user } = useAuth()
+  const isGabriel = user?.id === 'gabriel'
+
+  // Live accounts from user storage
+  const initialAccounts: Account[] = isGabriel ? GABRIEL_INITIAL_ACCOUNTS : ACCOUNTS.map(a => ({ ...a }))
+  const [accounts] = useUserStorage<Account[]>('finai_accounts', initialAccounts)
+
+  // Accounts with credit card invoices — show all if none have invoiceAmount
+  const bankInvoices = accounts.filter(a => a.invoiceAmount)
+  const displayAccounts = bankInvoices.length > 0 ? bankInvoices : accounts
+
+  const totalFaturas = bankInvoices.reduce((s, a) => s + (a.invoiceAmount || 0), 0)
+
+  const [activeBank, setActiveBank] = useState<string>('')
+  const effectiveBank = activeBank || displayAccounts[0]?.id || ''
+  const activeAcc = accounts.find(a => a.id === effectiveBank)
+
+  // Per-user invoice transaction map and paid status
+  const [paidBillsArr, setPaidBillsArr] = useUserStorage<string[]>('finai_paid_bills', [])
   const paidBills = new Set(paidBillsArr)
-  const [txMap, setTxMap] = useLocalStorage<Record<string, InvoiceTx[]>>('finai_fatura_map', buildInitialMap())
+  const [txMap, setTxMap] = useUserStorage<Record<string, InvoiceTx[]>>('finai_fatura_map', {})
+
   const [showAdd, setShowAdd] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [form, setForm] = useState({ description: '', amount: '', category: 'Alimentação', date: new Date().toISOString().slice(0,10) })
   const [editForm, setEditForm] = useState<Omit<Partial<InvoiceTx>, 'amount'> & { amount: string }>({ amount: '' })
 
-  const bankInvoices = ACCOUNTS.filter(a => a.invoiceAmount)
-  const totalFaturas = bankInvoices.reduce((s, a) => s + (a.invoiceAmount || 0), 0)
-  const activeAcc = ACCOUNTS.find(a => a.id === activeBank)!
-  const activeTxs = txMap[activeBank] || []
+  const activeTxs = txMap[effectiveBank] || []
 
   const togglePaid = (id: string) => setPaidBillsArr(prev => {
     const s = new Set(prev)
@@ -42,10 +51,10 @@ export default function FaturasPage() {
   })
 
   const addTx = () => {
-    if (!form.description || !form.amount) return
+    if (!form.description || !form.amount || !activeAcc) return
     const newTx: InvoiceTx = {
       id: `fi${Date.now()}`,
-      accountId: activeBank,
+      accountId: effectiveBank,
       description: form.description,
       amount: -Math.abs(parseFloat(form.amount)),
       type: 'debit',
@@ -55,7 +64,7 @@ export default function FaturasPage() {
       date: form.date,
       _fake: true,
     }
-    setTxMap(prev => ({ ...prev, [activeBank]: [newTx, ...(prev[activeBank] || [])] }))
+    setTxMap(prev => ({ ...prev, [effectiveBank]: [newTx, ...(prev[effectiveBank] || [])] }))
     setForm({ description: '', amount: '', category: 'Alimentação', date: new Date().toISOString().slice(0,10) })
     setShowAdd(false)
   }
@@ -65,7 +74,7 @@ export default function FaturasPage() {
   const saveEdit = () => {
     setTxMap(prev => ({
       ...prev,
-      [activeBank]: (prev[activeBank] || []).map(t => {
+      [effectiveBank]: (prev[effectiveBank] || []).map(t => {
         if (t.id !== editId) return t
         return { ...t, description: editForm.description || t.description, amount: -Math.abs(parseFloat(editForm.amount || '0')), category: editForm.category || t.category, date: editForm.date || t.date }
       })
@@ -73,7 +82,29 @@ export default function FaturasPage() {
     setEditId(null)
   }
 
-  const deleteTx = (id: string) => { setTxMap(prev => ({ ...prev, [activeBank]: (prev[activeBank] || []).filter(t => t.id !== id) })); setDeleteId(null) }
+  const deleteTx = (id: string) => {
+    setTxMap(prev => ({ ...prev, [effectiveBank]: (prev[effectiveBank] || []).filter(t => t.id !== id) }))
+    setDeleteId(null)
+  }
+
+  // Empty state — no accounts at all
+  if (accounts.length === 0) {
+    return (
+      <div className="p-4 sm:p-6 max-w-[1200px]">
+        <h1 className="text-2xl font-bold text-white mb-2">Faturas</h1>
+        <div className="rounded-2xl bg-[#16161E] border border-white/[0.06] p-10 flex flex-col items-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-white/[0.04] flex items-center justify-center">
+            <Landmark className="w-6 h-6 text-slate-600" />
+          </div>
+          <p className="text-sm text-slate-400 font-medium">Nenhuma conta cadastrada</p>
+          <p className="text-xs text-slate-600">Adicione suas contas em <span className="text-primary-400">Contas</span> para começar a usar as faturas.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Guard — can happen on first render before localStorage hydrates
+  if (!activeAcc) return null
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-[1200px]">
@@ -81,20 +112,25 @@ export default function FaturasPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white">Faturas</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Cartões de crédito • Maio / Junho 2026</p>
+          <p className="text-sm text-slate-500 mt-0.5">
+            Cartões de crédito •{' '}
+            {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+          </p>
         </div>
-        <div className="px-4 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20">
-          <p className="text-xs text-slate-500">Total em aberto</p>
-          <p className="text-lg font-bold text-rose-400 tabular-nums">{formatCurrency(totalFaturas)}</p>
-        </div>
+        {totalFaturas > 0 && (
+          <div className="px-4 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20">
+            <p className="text-xs text-slate-500">Total em aberto</p>
+            <p className="text-lg font-bold text-rose-400 tabular-nums">{formatCurrency(totalFaturas)}</p>
+          </div>
+        )}
       </div>
 
       {/* Invoice overview cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {bankInvoices.map(account => {
+        {displayAccounts.map(account => {
           const days = account.invoiceDue ? daysUntil(account.invoiceDue) : null
           const isPaid = paidBills.has(account.id)
-          const isActive = activeBank === account.id
+          const isActive = effectiveBank === account.id
           return (
             <button key={account.id} onClick={() => setActiveBank(account.id)}
               className={cn('text-left rounded-2xl p-4 border transition-all duration-200', isActive ? 'border-primary-500/40 shadow-glow-sm' : 'border-white/[0.06] hover:border-white/[0.12]', 'bg-[#16161E]')}>
@@ -102,21 +138,29 @@ export default function FaturasPage() {
                 <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold" style={{ background: `linear-gradient(135deg, ${account.color}, ${account.color}99)` }}>{account.logo}</div>
                 <div>
                   <p className="text-xs font-medium text-slate-200">{account.name}</p>
-                  <p className="text-[10px] text-slate-500">Cartão</p>
+                  <p className="text-[10px] text-slate-500">{account.invoiceAmount ? 'Cartão' : 'Conta'}</p>
                 </div>
               </div>
-              <p className={cn('text-xl font-bold tabular-nums', isPaid ? 'text-emerald-400 line-through opacity-60' : 'text-white')}>{formatCurrency(account.invoiceAmount!)}</p>
-              {days !== null && !isPaid && (
-                <div className={cn('mt-2 flex items-center gap-1.5 text-xs', days <= 3 ? 'text-rose-400' : days <= 7 ? 'text-amber-400' : 'text-slate-500')}>
-                  {days <= 3 && <AlertCircle className="w-3 h-3" />}
-                  {days <= 0 ? 'Vencida!' : `Vence em ${days}d`}
-                </div>
+              {account.invoiceAmount ? (
+                <>
+                  <p className={cn('text-xl font-bold tabular-nums', isPaid ? 'text-emerald-400 line-through opacity-60' : 'text-white')}>{formatCurrency(account.invoiceAmount)}</p>
+                  {days !== null && !isPaid && (
+                    <div className={cn('mt-2 flex items-center gap-1.5 text-xs', days <= 3 ? 'text-rose-400' : days <= 7 ? 'text-amber-400' : 'text-slate-500')}>
+                      {days <= 3 && <AlertCircle className="w-3 h-3" />}
+                      {days <= 0 ? 'Vencida!' : `Vence em ${days}d`}
+                    </div>
+                  )}
+                  {account.invoiceDue && <p className="text-[10px] text-slate-600 mt-0.5">{formatDate(account.invoiceDue, 'medium')}</p>}
+                  <button onClick={e => { e.stopPropagation(); togglePaid(account.id) }}
+                    className={cn('mt-3 w-full py-1.5 rounded-lg text-xs font-medium transition-all', isPaid ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-white/[0.04] text-slate-400 hover:text-slate-200')}>
+                    {isPaid ? '✓ Pago' : 'Marcar como pago'}
+                  </button>
+                </>
+              ) : (
+                <p className="text-xl font-bold tabular-nums text-slate-400">
+                  {formatCurrency(activeTxs.filter(t => t.accountId === account.id).reduce((s, t) => s + Math.abs(t.amount), 0))}
+                </p>
               )}
-              {account.invoiceDue && <p className="text-[10px] text-slate-600 mt-0.5">{formatDate(account.invoiceDue, 'medium')}</p>}
-              <button onClick={e => { e.stopPropagation(); togglePaid(account.id) }}
-                className={cn('mt-3 w-full py-1.5 rounded-lg text-xs font-medium transition-all', isPaid ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-white/[0.04] text-slate-400 hover:text-slate-200')}>
-                {isPaid ? '✓ Pago' : 'Marcar como pago'}
-              </button>
             </button>
           )
         })}
@@ -159,14 +203,16 @@ export default function FaturasPage() {
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold" style={{ background: `linear-gradient(135deg, ${activeAcc.color}, ${activeAcc.color}99)` }}>{activeAcc.logo}</div>
             <div>
-              <h3 className="text-base font-semibold text-white">{activeAcc.name} — Fatura detalhada</h3>
-              <p className="text-xs text-slate-500">{activeTxs.length} lançamentos · Vencimento: {activeAcc.invoiceDue ? formatDate(activeAcc.invoiceDue, 'long') : '-'}</p>
+              <h3 className="text-base font-semibold text-white">{activeAcc.name} — Lançamentos</h3>
+              <p className="text-xs text-slate-500">{activeTxs.length} lançamentos · {activeAcc.invoiceDue ? `Vencimento: ${formatDate(activeAcc.invoiceDue, 'long')}` : 'Sem vencimento definido'}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <div className="text-right">
               <p className="text-xs text-slate-500">Total</p>
-              <p className="text-2xl font-bold text-white tabular-nums">{formatCurrency(activeAcc.invoiceAmount!)}</p>
+              <p className="text-2xl font-bold text-white tabular-nums">
+                {formatCurrency(activeAcc.invoiceAmount || activeTxs.reduce((s, t) => s + Math.abs(t.amount), 0))}
+              </p>
             </div>
             <button onClick={() => setShowAdd(v => !v)} className="flex items-center gap-2 px-4 py-2 rounded-xl btn-primary text-sm">
               <Plus className="w-3.5 h-3.5" />Adicionar
@@ -231,7 +277,7 @@ export default function FaturasPage() {
         </div>
 
         <div className="px-5 py-4 border-t border-white/[0.06] flex items-center justify-between" style={{ background: `linear-gradient(135deg, ${activeAcc.color}08, transparent)` }}>
-          <span className="text-sm font-semibold text-white">Total da fatura</span>
+          <span className="text-sm font-semibold text-white">Total dos lançamentos</span>
           <span className="text-lg font-bold text-white tabular-nums">{formatCurrency(activeTxs.reduce((s, t) => s + Math.abs(t.amount), 0))}</span>
         </div>
       </div>

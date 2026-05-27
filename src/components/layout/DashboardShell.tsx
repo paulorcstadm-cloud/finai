@@ -6,8 +6,8 @@ import { Sidebar } from './Sidebar'
 import { FAB } from '@/components/shared/FAB'
 import { Menu, Sparkles, Bell } from 'lucide-react'
 import Link from 'next/link'
-import { ALERTS } from '@/lib/mock-data'
 import { useAuth } from '@/contexts/AuthContext'
+import { useUserStorage } from '@/hooks/useUserStorage'
 import { cn } from '@/lib/utils'
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -15,7 +15,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [tick, setTick] = useState(0)
-  const unread = ALERTS.filter(a => !a.isRead).length
+  const [alerts] = useUserStorage<Array<{ isRead: boolean }>>('finai_alerts', [])
+  const unread = alerts.filter(a => !a.isRead).length
 
   // Auth guard
   useEffect(() => {

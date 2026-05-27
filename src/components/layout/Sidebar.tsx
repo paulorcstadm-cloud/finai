@@ -4,13 +4,16 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { ALERTS } from '@/lib/mock-data'
 import { useAuth } from '@/contexts/AuthContext'
+import { useUserStorage } from '@/hooks/useUserStorage'
+import { ACCOUNTS } from '@/lib/mock-data'
+import { GABRIEL_INITIAL_ACCOUNTS } from '@/lib/users'
+import type { Account } from '@/lib/types'
 import {
   LayoutDashboard, Landmark, TrendingUp, Users, CreditCard,
   Target, MessageSquare, Upload, Bell, Repeat,
   ChevronRight, Sparkles, LogOut, Settings, X, KeyRound,
-  Check, Eye, EyeOff,
+  Check, Eye, EyeOff, RotateCcw,
 } from 'lucide-react'
 
 const ALL_NAV = [
@@ -30,7 +33,11 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
   const pathname = usePathname()
   const router = useRouter()
   const { user, logout, changePassword } = useAuth()
-  const unread = ALERTS.filter(a => !a.isRead).length
+
+  // Live total balance from user accounts
+  const initialAccounts: Account[] = user?.id === 'gabriel' ? GABRIEL_INITIAL_ACCOUNTS : ACCOUNTS.map(a => ({ ...a }))
+  const [accounts] = useUserStorage<Account[]>('finai_accounts', initialAccounts)
+  const totalBalance = accounts.reduce((s, a) => s + a.balance, 0)
 
   // Pulsing live dot
   const [livePulse, setLivePulse] = useState(true)
@@ -38,6 +45,10 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
     const id = setInterval(() => setLivePulse(v => !v), 2500)
     return () => clearInterval(id)
   }, [])
+
+  // Unread alerts — also live from user storage
+  const [alerts] = useUserStorage<Array<{ id: string; isRead: boolean }>>('finai_alerts', [])
+  const unread = alerts.filter(a => !a.isRead).length
 
   // Profile photo from localStorage
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null)
@@ -65,8 +76,23 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
     setTimeout(() => { setShowPwModal(false); setPwForm({ current: '', next: '', confirm: '' }); setPwSuccess(false) }, 1500)
   }
 
+  // Reset data modal
+  const [showResetModal, setShowResetModal] = useState(false)
+
+  const handleReset = () => {
+    if (!user) return
+    const keysToRemove: string[] = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && (key.startsWith(`${user.id}_finai`) || key.startsWith('finai_'))) {
+        keysToRemove.push(key)
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k))
+    window.location.reload()
+  }
+
   const nav = ALL_NAV.filter(n => user?.nav.includes(n.id as never) ?? true)
-  const totalBalance = user?.id === 'gabriel' ? 5047.80 : 18182.70
 
   const handleLogout = () => {
     logout()
@@ -111,8 +137,8 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
             R$ {totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </p>
           <div className="flex items-center gap-1 mt-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            <span className="text-[10px] text-emerald-400">+R$ 58,40 hoje</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-slate-600" />
+            <span className="text-[10px] text-slate-600">{accounts.length} conta{accounts.length !== 1 ? 's' : ''}</span>
           </div>
         </div>
 
@@ -181,6 +207,13 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
                 title="Alterar senha"
               >
                 <Settings className="w-3 h-3 text-slate-500" />
+              </button>
+              <button
+                onClick={() => setShowResetModal(true)}
+                className="w-6 h-6 rounded-lg hover:bg-amber-500/20 flex items-center justify-center"
+                title="Redefinir dados"
+              >
+                <RotateCcw className="w-3 h-3 text-slate-500 hover:text-amber-400" />
               </button>
               <button onClick={handleLogout} className="w-6 h-6 rounded-lg hover:bg-rose-500/20 flex items-center justify-center" title="Sair">
                 <LogOut className="w-3 h-3 text-slate-500 hover:text-rose-400" />
@@ -267,6 +300,42 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Reset Data Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowResetModal(false)} />
+          <div className="relative w-full max-w-sm bg-[#16161E] border border-amber-500/20 rounded-2xl p-6 shadow-2xl">
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center">
+                <RotateCcw className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-white">Redefinir dados financeiros</h3>
+                <p className="text-[11px] text-slate-500">Esta ação não pode ser desfeita</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-400 mb-5 leading-relaxed">
+              Todos os seus dados financeiros (contas, transações, metas, assinaturas, faturas) serão apagados e você começará do zero.
+              Suas fotos de perfil e senha serão mantidas.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowResetModal(false)}
+                className="flex-1 py-2.5 rounded-xl bg-white/[0.04] text-sm text-slate-400 hover:text-slate-200 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleReset}
+                className="flex-1 py-2.5 rounded-xl bg-amber-500/20 border border-amber-500/30 text-sm text-amber-300 hover:bg-amber-500/30 transition-all font-medium"
+              >
+                Sim, redefinir
+              </button>
+            </div>
           </div>
         </div>
       )}
