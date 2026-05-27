@@ -39,14 +39,19 @@ function LoginForm() {
     })
 
     if (signInError) {
-      // Translate common Supabase errors to Portuguese
-      const msg = signInError.message.includes('Invalid login')
-        ? 'E-mail ou senha incorretos.'
-        : signInError.message.includes('Email not confirmed')
-          ? 'Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada.'
-          : signInError.message.includes('Too many requests')
-            ? 'Muitas tentativas. Aguarde alguns minutos.'
-            : 'Erro ao entrar. Tente novamente.'
+      const m = signInError.message.toLowerCase()
+      const msg =
+        m.includes('invalid login') || m.includes('invalid credentials')
+          ? 'E-mail ou senha incorretos.'
+          : m.includes('email not confirmed')
+            ? 'Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada (e o spam).'
+            : m.includes('too many') || m.includes('rate limit')
+              ? 'Muitas tentativas. Aguarde alguns minutos e tente novamente.'
+              : m.includes('network') || m.includes('fetch')
+                ? 'Erro de conexão. Verifique sua internet e tente novamente.'
+                : m.includes('user not found')
+                  ? 'E-mail não cadastrado. Verifique ou crie uma conta.'
+                  : 'Erro ao entrar. Tente novamente.'
       setError(msg)
       setLoading(false)
       return

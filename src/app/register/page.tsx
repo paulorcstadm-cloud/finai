@@ -72,11 +72,17 @@ export default function RegisterPage() {
     setLoading(false)
 
     if (signUpError) {
-      const msg = signUpError.message.includes('already registered')
-        ? 'Este e-mail já está cadastrado. Tente fazer login.'
-        : signUpError.message.includes('Password should be')
-          ? 'A senha não atende aos requisitos mínimos de segurança.'
-          : `Erro: ${signUpError.message}`
+      const m = signUpError.message.toLowerCase()
+      const msg =
+        m.includes('already registered') || m.includes('user already registered')
+          ? 'Este e-mail já está cadastrado. Tente fazer login.'
+          : m.includes('password should be') || m.includes('weak password')
+            ? 'A senha não atende aos requisitos mínimos de segurança.'
+            : m.includes('rate limit') || m.includes('too many')
+              ? 'Muitas tentativas. Aguarde alguns minutos e tente novamente.'
+              : m.includes('invalid email')
+                ? 'E-mail inválido. Verifique e tente novamente.'
+                : 'Erro ao criar conta. Tente novamente.'
       setError(msg)
       return
     }

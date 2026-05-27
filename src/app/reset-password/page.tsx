@@ -47,6 +47,9 @@ export default function ResetPasswordPage() {
     }
 
     setSuccess(true)
+
+    // Sign out so the user logs in cleanly with the new password
+    await supabase.auth.signOut()
     setTimeout(() => router.replace('/login?message=Senha atualizada com sucesso! Faça login.'), 2000)
   }
 

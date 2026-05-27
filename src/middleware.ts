@@ -35,19 +35,26 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // Public routes (auth pages)
-  const authPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email', '/auth']
-  const isAuthPath = authPaths.some(p => pathname.startsWith(p))
+  // Routes that are always public (no session required)
+  const publicPaths = [
+    '/login', '/register', '/forgot-password',
+    '/reset-password', '/verify-email', '/auth',
+  ]
+  const isPublicPath = publicPaths.some(p => pathname.startsWith(p))
 
   // If not logged in and trying to access a protected route → login
-  if (!user && !isAuthPath && pathname !== '/') {
+  if (!user && !isPublicPath && pathname !== '/') {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  // If logged in and trying to access auth pages → dashboard
-  if (user && isAuthPath && !pathname.startsWith('/auth/callback')) {
+  // Routes where we should redirect logged-in users to dashboard
+  // NOTE: /reset-password and /auth are intentionally excluded —
+  //   /reset-password: user just exchanged a recovery code and needs to set a new password
+  //   /auth/*: callback routes must run freely to exchange codes
+  const loginOnlyPaths = ['/login', '/register', '/forgot-password', '/verify-email']
+  if (user && loginOnlyPaths.some(p => pathname.startsWith(p))) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
