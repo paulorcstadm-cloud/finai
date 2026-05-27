@@ -32,7 +32,10 @@
       "Bash(git push *)",
       "Bash(npm install *)",
       "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('next:', p.dependencies.next\\)\")",
-      "Bash(node -e \"const l=require\\('./package-lock.json'\\); console.log\\('lockfileVersion:', l.lockfileVersion\\); console.log\\('next:', l.packages?.['node_modules/next']?.version\\)\")"
+      "Bash(node -e \"const l=require\\('./package-lock.json'\\); console.log\\('lockfileVersion:', l.lockfileVersion\\); console.log\\('next:', l.packages?.['node_modules/next']?.version\\)\")",
+      "Bash(git checkout *)",
+      "Bash(git stash *)",
+      "Bash(git commit -m 'chore: update Claude Code allowed commands \\(session cleanup\\) *)"
     ]
   }
 }
