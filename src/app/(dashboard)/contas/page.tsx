@@ -12,7 +12,21 @@ import {
 import { cn, formatCurrency, formatDate, daysUntil } from '@/lib/utils'
 import { ACCOUNTS } from '@/lib/mock-data'
 import { GABRIEL_INITIAL_ACCOUNTS } from '@/lib/users'
-import type { Account, Transaction } from '@/lib/types'
+import type { Account, Transaction, Bill } from '@/lib/types'
+
+// ─── Category mapping: transaction → contas a pagar ──────────────────────────
+const TX_TO_BILL: Record<string, { id: string; icon: string; color: string }> = {
+  'Alimentação':  { id: 'alimentacao', icon: '🍽️', color: '#4ADE80' },
+  'Mercado':      { id: 'alimentacao', icon: '🍽️', color: '#4ADE80' },
+  'Transporte':   { id: 'transporte',  icon: '🚗',  color: '#FB923C' },
+  'Saúde':        { id: 'saude',       icon: '🏥',  color: '#F87171' },
+  'Moradia':      { id: 'moradia',     icon: '🏠',  color: '#60A5FA' },
+  'Compras':      { id: 'compras',     icon: '🛒',  color: '#F472B6' },
+  'Utilidades':   { id: 'energia',     icon: '⚡',  color: '#FBBF24' },
+  'Assinaturas':  { id: 'emprestimo',  icon: '💳',  color: '#818CF8' },
+  'Educação':     { id: 'educacao',    icon: '🎓',  color: '#A78BFA' },
+}
+const defaultBillCat = { id: 'outros', icon: '📦', color: '#94A3B8' }
 
 // ─── Bank preset library ──────────────────────────────────────────────────────
 
@@ -76,6 +90,7 @@ export default function ContasPage() {
 
   const [accounts, setAccounts] = useUserStorage<Account[]>('finai_accounts', initialAccounts)
   const [transactions, setTransactions] = useUserStorage<Transaction[]>('finai_transactions', [])
+  const [, setBills] = useUserStorage<Bill[]>('finai_bills', [])
 
   const [hideValues, setHideValues]       = useState(false)
   const [selectedAccount, setSelectedAccount] = useState<string>(initialAccounts[0]?.id ?? '')
@@ -190,6 +205,26 @@ export default function ContasPage() {
     }
     setTransactions(prev => [newTx, ...prev])
     setAccounts(prev => prev.map(a => a.id === selected.id ? { ...a, balance: a.balance + newTx.amount } : a))
+
+    // Auto-create a pending bill in Contas a Pagar for every debit
+    if (txForm.type === 'debit') {
+      const cat = TX_TO_BILL[txForm.category] ?? defaultBillCat
+      const newBill: Bill = {
+        id: `bill-auto-${Date.now()}`,
+        name: txForm.description,
+        amount: Math.abs(amt),
+        paidAmount: 0,
+        dueDate: txForm.date,
+        category: cat.id,
+        categoryIcon: cat.icon,
+        categoryColor: cat.color,
+        status: 'pending',
+        recurrent: false,
+        createdAt: new Date().toISOString(),
+      }
+      setBills(prev => [newBill, ...prev])
+    }
+
     setTxForm({ description: '', amount: '', type: 'debit', category: 'Alimentação', date: new Date().toISOString().slice(0, 10) })
     setShowAddTx(false)
   }
