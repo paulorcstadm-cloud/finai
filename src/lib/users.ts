@@ -11,7 +11,7 @@ export const USER_CONFIG = {
     color: '#6366f1',
     password: '08072023',
     score: 742,
-    nav: ['dashboard','contas','consorcio','gabriel','faturas','metas','assinaturas','chat','documentos','alertas'],
+    nav: ['dashboard','contas','consorcio','gabriel','faturas','contas-a-pagar','metas','assinaturas','chat','documentos','alertas'],
     quickPrompts: [
       { label: '📊 Resumo geral',  prompt: 'Me dê um resumo do meu estado financeiro atual' },
       { label: '📈 Consórcio',     prompt: 'Como está meu consórcio Sicredi? Vale antecipar?' },
@@ -30,7 +30,7 @@ export const USER_CONFIG = {
     color: '#10b981',
     password: '08072023',
     score: 685,
-    nav: ['dashboard','contas','faturas','metas','assinaturas','chat','documentos','alertas'],
+    nav: ['dashboard','contas','faturas','contas-a-pagar','metas','assinaturas','chat','documentos','alertas'],
     quickPrompts: [
       { label: '📊 Meu resumo',    prompt: 'Como estão minhas finanças hoje?' },
       { label: '💡 Economizar',    prompt: 'Como posso economizar mais este mês?' },

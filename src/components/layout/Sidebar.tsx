@@ -11,7 +11,7 @@ import { GABRIEL_INITIAL_ACCOUNTS } from '@/lib/users'
 import type { Account } from '@/lib/types'
 import {
   LayoutDashboard, Landmark, TrendingUp, Users, CreditCard,
-  Target, MessageSquare, Upload, Bell, Repeat,
+  Target, MessageSquare, Upload, Bell, Repeat, Receipt,
   ChevronRight, Sparkles, LogOut, Settings, X, KeyRound,
   Check, Eye, EyeOff, RotateCcw,
 } from 'lucide-react'
@@ -22,6 +22,7 @@ const ALL_NAV = [
   { id: 'consorcio',  label: 'Consórcio',   href: '/consorcio',  icon: TrendingUp,      color: '#34D399' },
   { id: 'gabriel',    label: 'Gabriel',      href: '/gabriel',    icon: Users,           color: '#F9A8D4' },
   { id: 'faturas',    label: 'Faturas',      href: '/faturas',    icon: CreditCard,      color: '#FB7185' },
+  { id: 'contas-a-pagar', label: 'Contas a Pagar', href: '/contas-a-pagar', icon: Receipt, color: '#FB923C' },
   { id: 'metas',      label: 'Metas',        href: '/metas',      icon: Target,          color: '#FCD34D' },
   { id: 'assinaturas',label: 'Assinaturas',  href: '/assinaturas',icon: Repeat,          color: '#A78BFA' },
   { id: 'chat',       label: 'CFO IA',       href: '/chat',       icon: MessageSquare,   color: '#67E8F9' },

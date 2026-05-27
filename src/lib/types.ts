@@ -1,4 +1,5 @@
 export type AccountType = 'checking' | 'savings' | 'credit' | 'investment'
+export type BillStatus = 'pending' | 'partial' | 'paid'
 export type TransactionType = 'debit' | 'credit' | 'transfer'
 export type DocumentStatus = 'pending' | 'processing' | 'done' | 'error'
 export type AlertSeverity = 'info' | 'warning' | 'danger' | 'success'
@@ -118,6 +119,22 @@ export interface Alert {
   createdAt: string
   actionLabel?: string
   actionUrl?: string
+}
+
+export interface Bill {
+  id: string
+  name: string
+  amount: number
+  paidAmount: number
+  dueDate: string
+  category: string
+  categoryIcon: string
+  categoryColor: string
+  status: BillStatus
+  recurrent: boolean
+  notes?: string
+  createdAt: string
+  paidAt?: string
 }
 
 export interface ChatMessage {
