@@ -76,7 +76,7 @@ export default function RegisterPage() {
         ? 'Este e-mail já está cadastrado. Tente fazer login.'
         : signUpError.message.includes('Password should be')
           ? 'A senha não atende aos requisitos mínimos de segurança.'
-          : 'Erro ao criar conta. Tente novamente.'
+          : `Erro: ${signUpError.message}`
       setError(msg)
       return
     }
