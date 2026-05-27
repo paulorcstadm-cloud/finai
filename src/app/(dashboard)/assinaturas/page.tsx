@@ -6,8 +6,6 @@ import { useAuth } from '@/contexts/AuthContext'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { Repeat, Plus, Power, PowerOff, AlertCircle, Calendar, Pencil, Trash2, Check, X } from 'lucide-react'
 import { cn, formatCurrency, formatDate, daysUntil } from '@/lib/utils'
-import { SUBSCRIPTIONS, INSTALLMENTS, ACCOUNTS } from '@/lib/mock-data'
-import { GABRIEL_INITIAL_SUBS } from '@/lib/users'
 import type { Subscription, Installment } from '@/lib/types'
 
 const CAT_COLORS: Record<string, string> = { Entretenimento: '#e11d48', Música: '#1DB954', Produtividade: '#10a37f', Saúde: '#f59e0b', Internet: '#3b82f6', Armazenamento: '#6366f1', Design: '#ff0000' }
@@ -15,12 +13,11 @@ const CYCLES = ['monthly', 'yearly', 'weekly'] as const
 const CATS = ['Entretenimento', 'Música', 'Produtividade', 'Saúde', 'Internet', 'Armazenamento', 'Design', 'Outros']
 
 export default function AssinaturasPage() {
-  const { user } = useAuth()
-  const initialSubs = user?.id === 'gabriel' ? GABRIEL_INITIAL_SUBS : SUBSCRIPTIONS
-  const initialInstallments = user?.id === 'gabriel' ? [] : INSTALLMENTS
+  const { user: _user } = useAuth()
 
-  const [subs, setSubs] = useUserStorage<Subscription[]>('finai_subs', initialSubs)
-  const [installments, setInstallments] = useUserStorage<Installment[]>('finai_installments', initialInstallments)
+  const [subs, setSubs] = useUserStorage<Subscription[]>('finai_subs', [])
+  const [installments, setInstallments] = useUserStorage<Installment[]>('finai_installments', [])
+  const [accounts] = useUserStorage<import('@/lib/types').Account[]>('finai_accounts', [])
   const [tab, setTab] = useState<'assinaturas' | 'parcelamentos'>('assinaturas')
   const [showAdd, setShowAdd] = useState(false)
   const [showAddParc, setShowAddParc] = useState(false)
@@ -29,7 +26,7 @@ export default function AssinaturasPage() {
 
   const [form, setForm] = useState({ name: '', amount: '', billingCycle: 'monthly' as typeof CYCLES[number], nextBilling: new Date().toISOString().slice(0,10), category: 'Entretenimento', icon: '📱', color: '#6366f1' })
   const [editForm, setEditForm] = useState<Omit<Partial<Subscription>, 'amount'> & { amount: string }>({ amount: '' })
-  const [parcForm, setParcForm] = useState({ description: '', totalAmount: '', installmentValue: '', totalInstallments: '', startDate: new Date().toISOString().slice(0,10), accountId: ACCOUNTS[0]?.id ?? '', nextDue: new Date().toISOString().slice(0,10) })
+  const [parcForm, setParcForm] = useState({ description: '', totalAmount: '', installmentValue: '', totalInstallments: '', startDate: new Date().toISOString().slice(0,10), accountId: '', nextDue: new Date().toISOString().slice(0,10) })
 
   const active = subs.filter(s => s.isActive)
   const inactive = subs.filter(s => !s.isActive)
@@ -77,7 +74,7 @@ export default function AssinaturasPage() {
       startDate: parcForm.startDate, accountId: parcForm.accountId, nextDue: parcForm.nextDue,
     }
     setInstallments(prev => [...prev, newP])
-    setParcForm({ description: '', totalAmount: '', installmentValue: '', totalInstallments: '', startDate: new Date().toISOString().slice(0,10), accountId: ACCOUNTS[0]?.id ?? '', nextDue: new Date().toISOString().slice(0,10) })
+    setParcForm({ description: '', totalAmount: '', installmentValue: '', totalInstallments: '', startDate: new Date().toISOString().slice(0,10), accountId: accounts[0]?.id ?? '', nextDue: new Date().toISOString().slice(0,10) })
     setShowAddParc(false)
   }
 

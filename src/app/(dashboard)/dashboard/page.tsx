@@ -14,8 +14,6 @@ import {
   DollarSign, PiggyBank, Activity, Pencil, Check, X,
 } from 'lucide-react'
 import { cn, formatCurrency, formatRelativeDate, getScoreColor, getScoreLabel } from '@/lib/utils'
-import { ACCOUNTS } from '@/lib/mock-data'
-import { GABRIEL_INITIAL_ACCOUNTS } from '@/lib/users'
 import type { Account, Transaction, Goal, Alert } from '@/lib/types'
 
 const MONTH_NAMES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
@@ -48,16 +46,13 @@ const PieTip = ({ active, payload }: any) => {
 
 export default function DashboardPage() {
   const { user } = useAuth()
-  const isGabriel = user?.id === 'gabriel'
 
-  const defaultIncome = isGabriel ? 2800 : 5000
-  const [income, setIncome] = useUserStorage('finai_income', defaultIncome)
+  const [income, setIncome] = useUserStorage('finai_income', 5000)
   const [editIncome, setEditIncome] = useState(false)
   const [incomeInput, setIncomeInput] = useState(String(income))
 
   // Live data from localStorage
-  const initialAccounts: Account[] = isGabriel ? GABRIEL_INITIAL_ACCOUNTS : ACCOUNTS.map(a => ({ ...a }))
-  const [accounts] = useUserStorage<Account[]>('finai_accounts', initialAccounts)
+  const [accounts] = useUserStorage<Account[]>('finai_accounts', [])
   const [transactions] = useUserStorage<Transaction[]>('finai_transactions', [])
   const [goals] = useUserStorage<Goal[]>('finai_goals', [])
   const [alerts] = useUserStorage<Alert[]>('finai_alerts', [])

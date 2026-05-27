@@ -6,19 +6,17 @@ import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 import { useUserStorage } from '@/hooks/useUserStorage'
-import { createClient } from '@/lib/supabase/client'
 import type { Account } from '@/lib/types'
 import {
-  LayoutDashboard, Landmark, Users, CreditCard,
+  LayoutDashboard, Landmark, CreditCard,
   Target, MessageSquare, Upload, Bell, Repeat, Receipt,
-  ChevronRight, Sparkles, LogOut, Settings, X, KeyRound,
-  Check, Eye, EyeOff, RotateCcw,
+  ChevronRight, Sparkles, LogOut, Settings, X,
+  RotateCcw, UserCog,
 } from 'lucide-react'
 
 const ALL_NAV = [
   { id: 'dashboard',  label: 'Dashboard',   href: '/dashboard',  icon: LayoutDashboard, color: '#818CF8' },
   { id: 'contas',     label: 'Contas',       href: '/contas',     icon: Landmark,        color: '#60A5FA' },
-{ id: 'gabriel',    label: 'Gabriel',      href: '/gabriel',    icon: Users,           color: '#F9A8D4' },
   { id: 'faturas',    label: 'Faturas',      href: '/faturas',    icon: CreditCard,      color: '#FB7185' },
   { id: 'contas-a-pagar', label: 'Contas a Pagar', href: '/contas-a-pagar', icon: Receipt, color: '#FB923C' },
   { id: 'metas',      label: 'Metas',        href: '/metas',      icon: Target,          color: '#FCD34D' },
@@ -26,13 +24,13 @@ const ALL_NAV = [
   { id: 'chat',       label: 'CFO IA',       href: '/chat',       icon: MessageSquare,   color: '#67E8F9' },
   { id: 'documentos', label: 'Documentos',   href: '/documentos', icon: Upload,          color: '#94A3B8' },
   { id: 'alertas',    label: 'Alertas',      href: '/alertas',    icon: Bell,            color: '#FB7185' },
+  { id: 'perfil',     label: 'Meu Perfil',   href: '/perfil',     icon: UserCog,         color: '#818CF8' },
 ]
 
 export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const pathname = usePathname()
   const router = useRouter()
   const { user, logout } = useAuth()
-  const supabase = createClient()
 
   // Live total balance from user accounts
   const [accounts] = useUserStorage<Account[]>('finai_accounts', [])
@@ -56,35 +54,6 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
     const photo = localStorage.getItem(`${user.id}_profile_photo`)
     if (photo) setProfilePhoto(photo)
   }, [user?.id])
-
-  // Change password modal
-  const [showPwModal, setShowPwModal] = useState(false)
-  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' })
-  const [pwShow, setPwShow] = useState(false)
-  const [pwError, setPwError] = useState('')
-  const [pwSuccess, setPwSuccess] = useState(false)
-
-  const handleChangePassword = async () => {
-    setPwError('')
-    if (!pwForm.current || !pwForm.next || !pwForm.confirm) { setPwError('Preencha todos os campos.'); return }
-    if (pwForm.next !== pwForm.confirm) { setPwError('As novas senhas não coincidem.'); return }
-    if (pwForm.next.length < 8) { setPwError('Senha muito curta (mínimo 8 caracteres).'); return }
-    if (!user?.email) return
-
-    // Verify current password by re-authenticating
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: user.email,
-      password: pwForm.current,
-    })
-    if (signInError) { setPwError('Senha atual incorreta.'); return }
-
-    // Update to new password
-    const { error: updateError } = await supabase.auth.updateUser({ password: pwForm.next })
-    if (updateError) { setPwError('Não foi possível alterar a senha. Tente novamente.'); return }
-
-    setPwSuccess(true)
-    setTimeout(() => { setShowPwModal(false); setPwForm({ current: '', next: '', confirm: '' }); setPwSuccess(false) }, 1500)
-  }
 
   // Reset data modal
   const [showResetModal, setShowResetModal] = useState(false)
@@ -195,124 +164,51 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
           </div>
         </div>
 
-        {/* User */}
+        {/* User section — redesigned */}
         <div className="border-t border-white/[0.06] p-3 flex-shrink-0">
-          <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-white/[0.03] cursor-pointer group">
-            {/* Avatar: photo or initials */}
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden"
+          <Link href="/perfil" onClick={onClose}
+            className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-white/[0.04] cursor-pointer group transition-colors mb-1">
+            {/* Avatar */}
+            <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden border-2 border-white/10"
               style={!profilePhoto ? { background: `linear-gradient(135deg, ${user?.color ?? '#6366f1'}, ${user?.color ?? '#6366f1'}99)` } : undefined}>
               {profilePhoto
                 ? <img src={profilePhoto} alt="avatar" className="w-full h-full object-cover" />
-                : <span>{user?.avatar ?? 'PR'}</span>
+                : <span>{user?.avatar ?? 'U'}</span>
               }
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-200 truncate">{user?.name ?? 'Paulo'}</p>
+              <p className="text-xs font-semibold text-slate-200 truncate">{user?.name ?? ''}</p>
               <p className="text-[10px] text-slate-500 truncate">{user?.email ?? ''}</p>
             </div>
-            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                onClick={() => setShowPwModal(true)}
-                className="w-6 h-6 rounded-lg hover:bg-white/10 flex items-center justify-center"
-                title="Alterar senha"
-              >
-                <Settings className="w-3 h-3 text-slate-500" />
-              </button>
-              <button
-                onClick={() => setShowResetModal(true)}
-                className="w-6 h-6 rounded-lg hover:bg-amber-500/20 flex items-center justify-center"
-                title="Redefinir dados"
-              >
-                <RotateCcw className="w-3 h-3 text-slate-500 hover:text-amber-400" />
-              </button>
-              <button onClick={handleLogout} className="w-6 h-6 rounded-lg hover:bg-rose-500/20 flex items-center justify-center" title="Sair">
-                <LogOut className="w-3 h-3 text-slate-500 hover:text-rose-400" />
-              </button>
-            </div>
+            <ChevronRight className="w-3.5 h-3.5 text-slate-600 group-hover:text-slate-400 transition-colors flex-shrink-0" />
+          </Link>
+
+          {/* Action buttons row */}
+          <div className="grid grid-cols-3 gap-1.5">
+            <Link href="/perfil" onClick={onClose}
+              className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-white/[0.06] transition-colors group">
+              <div className="w-7 h-7 rounded-lg bg-primary-500/15 flex items-center justify-center">
+                <Settings className="w-3.5 h-3.5 text-primary-400" />
+              </div>
+              <span className="text-[9px] text-slate-500 group-hover:text-slate-300">Perfil</span>
+            </Link>
+            <button onClick={() => setShowResetModal(true)}
+              className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-white/[0.06] transition-colors group">
+              <div className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center">
+                <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+              </div>
+              <span className="text-[9px] text-slate-500 group-hover:text-slate-300">Dados</span>
+            </button>
+            <button onClick={handleLogout}
+              className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-rose-500/10 transition-colors group">
+              <div className="w-7 h-7 rounded-lg bg-rose-500/15 flex items-center justify-center">
+                <LogOut className="w-3.5 h-3.5 text-rose-400" />
+              </div>
+              <span className="text-[9px] text-slate-500 group-hover:text-rose-400">Sair</span>
+            </button>
           </div>
         </div>
       </aside>
-
-      {/* Change Password Modal */}
-      {showPwModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setShowPwModal(false); setPwError(''); setPwForm({ current: '', next: '', confirm: '' }) }} />
-          <div className="relative w-full max-w-sm bg-[#16161E] border border-white/[0.10] rounded-2xl p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-primary-500/15 flex items-center justify-center">
-                  <KeyRound className="w-4 h-4 text-primary-400" />
-                </div>
-                <h3 className="text-sm font-semibold text-white">Alterar senha</h3>
-              </div>
-              <button onClick={() => { setShowPwModal(false); setPwError(''); setPwForm({ current: '', next: '', confirm: '' }) }} className="w-7 h-7 rounded-lg hover:bg-white/[0.08] flex items-center justify-center text-slate-500 hover:text-slate-300">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {pwSuccess ? (
-              <div className="flex flex-col items-center gap-3 py-4">
-                <div className="w-12 h-12 rounded-full bg-emerald-500/15 flex items-center justify-center">
-                  <Check className="w-6 h-6 text-emerald-400" />
-                </div>
-                <p className="text-sm text-emerald-400 font-medium">Senha alterada com sucesso!</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs text-slate-500 mb-1.5 block">Senha atual</label>
-                  <div className="relative">
-                    <input
-                      type={pwShow ? 'text' : 'password'}
-                      value={pwForm.current}
-                      onChange={e => { setPwForm(f => ({ ...f, current: e.target.value })); setPwError('') }}
-                      placeholder="Digite a senha atual"
-                      className="finai-input w-full px-3 py-2.5 pr-10 text-sm text-white"
-                    />
-                    <button type="button" onClick={() => setPwShow(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
-                      {pwShow ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-slate-500 mb-1.5 block">Nova senha</label>
-                  <input
-                    type={pwShow ? 'text' : 'password'}
-                    value={pwForm.next}
-                    onChange={e => { setPwForm(f => ({ ...f, next: e.target.value })); setPwError('') }}
-                    placeholder="Nova senha"
-                    className="finai-input w-full px-3 py-2.5 text-sm text-white"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-500 mb-1.5 block">Confirmar nova senha</label>
-                  <input
-                    type={pwShow ? 'text' : 'password'}
-                    value={pwForm.confirm}
-                    onChange={e => { setPwForm(f => ({ ...f, confirm: e.target.value })); setPwError('') }}
-                    placeholder="Repetir nova senha"
-                    onKeyDown={e => e.key === 'Enter' && handleChangePassword()}
-                    className="finai-input w-full px-3 py-2.5 text-sm text-white"
-                  />
-                </div>
-
-                {pwError && (
-                  <p className="text-xs text-rose-400 px-1">{pwError}</p>
-                )}
-
-                <div className="flex gap-3 pt-1">
-                  <button onClick={() => { setShowPwModal(false); setPwError(''); setPwForm({ current: '', next: '', confirm: '' }) }} className="flex-1 py-2.5 rounded-xl bg-white/[0.04] text-sm text-slate-400 hover:text-slate-200 transition-all">
-                    Cancelar
-                  </button>
-                  <button onClick={handleChangePassword} disabled={!pwForm.current || !pwForm.next || !pwForm.confirm} className="flex-1 py-2.5 rounded-xl btn-primary text-sm">
-                    Salvar
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Reset Data Modal */}
       {showResetModal && (

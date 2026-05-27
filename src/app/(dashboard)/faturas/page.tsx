@@ -5,8 +5,6 @@ import { useUserStorage } from '@/hooks/useUserStorage'
 import { useAuth } from '@/contexts/AuthContext'
 import { CreditCard, AlertCircle, Plus, Pencil, Trash2, Check, X, Landmark } from 'lucide-react'
 import { cn, formatCurrency, formatDate, daysUntil } from '@/lib/utils'
-import { ACCOUNTS } from '@/lib/mock-data'
-import { GABRIEL_INITIAL_ACCOUNTS } from '@/lib/users'
 import type { Account, Transaction } from '@/lib/types'
 
 const CATS = ['Alimentação','Transporte','Mercado','Saúde','Lazer','Moradia','Compras','Assinaturas','Utilidades','Outros']
@@ -15,11 +13,9 @@ type InvoiceTx = Transaction & { _fake?: boolean }
 
 export default function FaturasPage() {
   const { user } = useAuth()
-  const isGabriel = user?.id === 'gabriel'
 
   // Live accounts from user storage
-  const initialAccounts: Account[] = isGabriel ? GABRIEL_INITIAL_ACCOUNTS : ACCOUNTS.map(a => ({ ...a }))
-  const [accounts] = useUserStorage<Account[]>('finai_accounts', initialAccounts)
+  const [accounts] = useUserStorage<Account[]>('finai_accounts', [])
 
   // Accounts with credit card invoices — show all if none have invoiceAmount
   const bankInvoices = accounts.filter(a => a.invoiceAmount)

@@ -10,8 +10,6 @@ import {
   Settings, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import { cn, formatCurrency, formatDate, daysUntil } from '@/lib/utils'
-import { ACCOUNTS } from '@/lib/mock-data'
-import { GABRIEL_INITIAL_ACCOUNTS } from '@/lib/users'
 import type { Account, Transaction, Bill } from '@/lib/types'
 
 // ─── Category mapping: transaction → contas a pagar ──────────────────────────
@@ -85,15 +83,14 @@ const emptyBankForm = () => ({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ContasPage() {
-  const { user } = useAuth()
-  const initialAccounts = user?.id === 'gabriel' ? GABRIEL_INITIAL_ACCOUNTS : ACCOUNTS.map(a => ({ ...a }))
+  const { user: _user } = useAuth()
 
-  const [accounts, setAccounts] = useUserStorage<Account[]>('finai_accounts', initialAccounts)
+  const [accounts, setAccounts] = useUserStorage<Account[]>('finai_accounts', [])
   const [transactions, setTransactions] = useUserStorage<Transaction[]>('finai_transactions', [])
   const [, setBills] = useUserStorage<Bill[]>('finai_bills', [])
 
   const [hideValues, setHideValues]       = useState(false)
-  const [selectedAccount, setSelectedAccount] = useState<string>(initialAccounts[0]?.id ?? '')
+  const [selectedAccount, setSelectedAccount] = useState<string>('')
   const [showAddTx, setShowAddTx]         = useState(false)
   const [editTxId, setEditTxId]           = useState<string | null>(null)
   const [deleteTxId, setDeleteTxId]       = useState<string | null>(null)

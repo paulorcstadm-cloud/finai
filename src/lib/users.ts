@@ -11,7 +11,7 @@ export const USER_CONFIG = {
     color: '#6366f1',
     password: '08072023',
     score: 742,
-    nav: ['dashboard','contas','gabriel','faturas','contas-a-pagar','metas','assinaturas','chat','documentos','alertas'],
+    nav: ['dashboard','contas','faturas','contas-a-pagar','metas','assinaturas','chat','documentos','alertas','perfil'],
     quickPrompts: [
       { label: '📊 Resumo geral',  prompt: 'Me dê um resumo do meu estado financeiro atual' },
       { label: '✂️ Onde cortar',   prompt: 'Onde posso cortar gastos esse mês?' },

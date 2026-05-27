@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { Plus, X, ArrowDownLeft, ArrowUpRight, Check, CreditCard, Layers } from 'lucide-react'
-import { ACCOUNTS, INSTALLMENTS } from '@/lib/mock-data'
-import type { Installment } from '@/lib/types'
+import { useUserStorage } from '@/hooks/useUserStorage'
+import type { Account, Installment, Transaction } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 const CATEGORIES = [
@@ -20,18 +20,18 @@ const CATEGORIES = [
   { name: 'Outros',      icon: '📝' },
 ]
 
-/** Write an installment directly to localStorage so Assinaturas page picks it up */
-function persistInstallment(data: Installment) {
-  if (typeof window === 'undefined') return
-  try {
-    const key = 'finai_installments'
-    const raw = window.localStorage.getItem(key)
-    const existing: Installment[] = raw ? JSON.parse(raw) : INSTALLMENTS
-    window.localStorage.setItem(key, JSON.stringify([data, ...existing]))
-  } catch {}
+const CAT_COLORS: Record<string, string> = {
+  'Alimentação': '#4ADE80', 'Transporte': '#FB923C', 'Mercado': '#60A5FA',
+  'Saúde': '#F87171', 'Lazer': '#FBBF24', 'Moradia': '#60A5FA',
+  'Compras': '#F472B6', 'Assinaturas': '#34D399', 'Salário': '#10b981',
+  'Transferência': '#818CF8', 'Outros': '#94A3B8',
 }
 
 export function FAB() {
+  const [accounts] = useUserStorage<Account[]>('finai_accounts', [])
+  const [, setInstallments] = useUserStorage<Installment[]>('finai_installments', [])
+  const [, setTransactions] = useUserStorage<Transaction[]>('finai_transactions', [])
+
   const [open, setOpen]   = useState(false)
   const [saved, setSaved] = useState(false)
   const [type, setType]   = useState<'debit'|'credit'>('debit')
@@ -41,12 +41,14 @@ export function FAB() {
     description: '',
     amount: '',
     category: 'Alimentação',
-    accountId: ACCOUNTS[0].id,
+    accountId: '',
     date: new Date().toISOString().slice(0, 10),
     notes: '',
   })
 
   const f = (key: string, val: string) => setForm(p => ({ ...p, [key]: val }))
+
+  const effectiveAccountId = form.accountId || accounts[0]?.id || ''
 
   const handleSave = () => {
     if (!form.description || !form.amount) return
@@ -62,10 +64,25 @@ export function FAB() {
         totalInstallments: n,
         paidInstallments: 0,
         startDate: form.date,
-        accountId: form.accountId,
+        accountId: effectiveAccountId,
         nextDue: form.date,
       }
-      persistInstallment(newInstallment)
+      setInstallments(prev => [newInstallment, ...prev])
+    } else {
+      const catColor = CAT_COLORS[form.category] ?? '#94A3B8'
+      const catIcon = CATEGORIES.find(c => c.name === form.category)?.icon ?? '📝'
+      const newTx: Transaction = {
+        id: `fab${Date.now()}`,
+        accountId: effectiveAccountId,
+        description: form.description,
+        amount: type === 'debit' ? -Math.abs(parseFloat(form.amount)) : Math.abs(parseFloat(form.amount)),
+        type: type === 'debit' ? 'debit' : 'credit',
+        category: form.category,
+        categoryIcon: catIcon,
+        categoryColor: catColor,
+        date: form.date,
+      }
+      setTransactions(prev => [newTx, ...prev])
     }
 
     setSaved(true)
@@ -74,7 +91,7 @@ export function FAB() {
       setOpen(false)
       setParcelado(false)
       setInstallCount('2')
-      setForm({ description:'', amount:'', category:'Alimentação', accountId:ACCOUNTS[0].id, date:new Date().toISOString().slice(0,10), notes:'' })
+      setForm({ description:'', amount:'', category:'Alimentação', accountId:'', date:new Date().toISOString().slice(0,10), notes:'' })
     }, 1200)
   }
 
@@ -216,8 +233,15 @@ export function FAB() {
 
             {/* Account + Date row */}
             <div className="grid grid-cols-2 gap-2">
-              <select value={form.accountId} onChange={e => f('accountId', e.target.value)} className="finai-input px-3 py-2 text-xs">
-                {ACCOUNTS.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              <select
+                value={effectiveAccountId}
+                onChange={e => f('accountId', e.target.value)}
+                className="finai-input px-3 py-2 text-xs"
+              >
+                {accounts.length === 0
+                  ? <option value="">Nenhuma conta</option>
+                  : accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)
+                }
               </select>
               <input type="date" value={form.date} onChange={e => f('date', e.target.value)} className="finai-input px-3 py-2 text-xs" />
             </div>

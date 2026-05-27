@@ -1,17 +1,81 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { Upload, FileText, CheckCircle, XCircle, Clock, RefreshCw, Download, Trash2, Eye } from 'lucide-react'
+import {
+  Upload, FileText, CheckCircle, XCircle, Clock, RefreshCw,
+  Trash2, X, ArrowUpRight, ArrowDownRight,
+} from 'lucide-react'
 import { cn, formatDate } from '@/lib/utils'
-import { DOCUMENTS } from '@/lib/mock-data'
-import type { Document, DocumentStatus } from '@/lib/types'
+import { useAuth } from '@/contexts/AuthContext'
+import { useUserStorage } from '@/hooks/useUserStorage'
+import type { Document, DocumentStatus, Account, Transaction } from '@/lib/types'
+
+// ─── Bank map ─────────────────────────────────────────────────────────────────
+
+const BANK_MAP: Record<string, { logo: string; color: string; gradient: string }> = {
+  'nubank':        { logo: 'NU', color: '#8a05be', gradient: 'from-[#8a05be] to-[#6200a8]' },
+  'itaú':         { logo: 'IT', color: '#ec7000', gradient: 'from-[#ec7000] to-[#c55a00]' },
+  'bradesco':      { logo: 'BD', color: '#cc0000', gradient: 'from-[#cc0000] to-[#990000]' },
+  'santander':     { logo: 'ST', color: '#ec0000', gradient: 'from-[#ec0000] to-[#b00000]' },
+  'caixa':         { logo: 'CX', color: '#005b9f', gradient: 'from-[#005b9f] to-[#003d6b]' },
+  'banco do brasil': { logo: 'BB', color: '#f9d100', gradient: 'from-[#f9d100] to-[#c9a800]' },
+  'sicoob':        { logo: 'SC', color: '#1a5f3a', gradient: 'from-[#1a5f3a] to-[#0d3d24]' },
+  'sicredi':       { logo: 'SR', color: '#006b3f', gradient: 'from-[#006b3f] to-[#004428]' },
+  'inter':         { logo: 'IN', color: '#ff7a00', gradient: 'from-[#ff7a00] to-[#cc6200]' },
+  'c6':            { logo: 'C6', color: '#242424', gradient: 'from-[#333] to-[#111]' },
+  'xp':            { logo: 'XP', color: '#000000', gradient: 'from-[#1a1a1a] to-[#000000]' },
+  'btg':           { logo: 'BT', color: '#003399', gradient: 'from-[#003399] to-[#002266]' },
+  'next':          { logo: 'NX', color: '#00c964', gradient: 'from-[#00c964] to-[#009948]' },
+  'picpay':        { logo: 'PP', color: '#11c76f', gradient: 'from-[#11c76f] to-[#0a9954]' },
+  'neon':          { logo: 'NO', color: '#7534f7', gradient: 'from-[#7534f7] to-[#5a1fd4]' },
+}
+
+function getBankInfo(bankName: string) {
+  const lower = (bankName ?? '').toLowerCase()
+  for (const [key, val] of Object.entries(BANK_MAP)) {
+    if (lower.includes(key)) return { ...val, name: bankName }
+  }
+  return {
+    logo: (bankName ?? 'XX').slice(0, 2).toUpperCase(),
+    color: '#6366f1',
+    gradient: 'from-[#6366f1] to-[#4f46e5]',
+    name: bankName,
+  }
+}
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface ExtractedTransaction {
+  date: string
+  description: string
+  amount: number
+  type: 'credit' | 'debit'
+  category: string
+}
+
+interface AnalysisResult {
+  bank: string
+  accountType: string
+  accountHolder: string | null
+  period: string | null
+  transactions: ExtractedTransaction[]
+  openingBalance: number | null
+  closingBalance: number | null
+}
+
+interface PendingDoc extends Document {
+  analysisResult?: AnalysisResult
+  rawFile?: File
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: DocumentStatus }) {
   const config = {
-    pending:    { icon: Clock,        color: 'text-amber-400',  bg: 'bg-amber-500/10  border-amber-500/20',  label: 'Pendente' },
-    processing: { icon: RefreshCw,    color: 'text-blue-400',   bg: 'bg-blue-500/10   border-blue-500/20',   label: 'Processando' },
+    pending:    { icon: Clock,        color: 'text-amber-400',   bg: 'bg-amber-500/10  border-amber-500/20',   label: 'Pendente' },
+    processing: { icon: RefreshCw,    color: 'text-blue-400',    bg: 'bg-blue-500/10   border-blue-500/20',    label: 'Processando' },
     done:       { icon: CheckCircle,  color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', label: 'Concluído' },
-    error:      { icon: XCircle,      color: 'text-rose-400',   bg: 'bg-rose-500/10   border-rose-500/20',   label: 'Erro' },
+    error:      { icon: XCircle,      color: 'text-rose-400',    bg: 'bg-rose-500/10   border-rose-500/20',    label: 'Erro' },
   }[status]
   const Icon = config.icon
   return (
@@ -28,61 +92,170 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+// ─── Category map for new transactions ───────────────────────────────────────
+
+const CAT_MAP: Record<string, { icon: string; color: string }> = {
+  'Alimentação': { icon: '🍽️', color: '#4ADE80' },
+  'Transporte':  { icon: '🚗', color: '#FB923C' },
+  'Moradia':     { icon: '🏠', color: '#60A5FA' },
+  'Saúde':       { icon: '🏥', color: '#F87171' },
+  'Educação':    { icon: '🎓', color: '#A78BFA' },
+  'Lazer':       { icon: '🎮', color: '#FBBF24' },
+  'Assinatura':  { icon: '📱', color: '#34D399' },
+  'Transferência': { icon: '💸', color: '#818CF8' },
+  'Outros':      { icon: '📦', color: '#94A3B8' },
+}
+
+function getCatInfo(cat: string) {
+  return CAT_MAP[cat] ?? { icon: '📦', color: '#94A3B8' }
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
 export default function DocumentosPage() {
-  const [documents, setDocuments] = useState<Document[]>(DOCUMENTS)
+  const { user } = useAuth()
+  const [documents, setDocuments] = useState<PendingDoc[]>([])
   const [dragging, setDragging] = useState(false)
-  const [selected, setSelected] = useState<string | null>(null)
+  const [reviewDoc, setReviewDoc] = useState<PendingDoc | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+
+  const [accounts, setAccounts] = useUserStorage<Account[]>('finai_accounts', [])
+  const [transactions, setTransactions] = useUserStorage<Transaction[]>('finai_transactions', [])
+
+  const showToast = (msg: string) => {
+    setToast(msg)
+    setTimeout(() => setToast(null), 4000)
+  }
+
+  const processFile = useCallback(async (file: File) => {
+    const docId = `d${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const newDoc: PendingDoc = {
+      id: docId,
+      filename: file.name,
+      type: 'invoice',
+      status: 'processing',
+      uploadedAt: new Date().toISOString(),
+      fileSize: file.size,
+      rawFile: file,
+    }
+
+    setDocuments(prev => [newDoc, ...prev])
+
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+
+      const res = await fetch('/api/documents/analyze', { method: 'POST', body: fd })
+      const json = await res.json()
+
+      if (!res.ok || !json.success) {
+        setDocuments(prev => prev.map(d => d.id === docId ? { ...d, status: 'error' } : d))
+        return
+      }
+
+      const result: AnalysisResult = json.data
+      const bankInfo = getBankInfo(result.bank ?? 'Banco')
+
+      setDocuments(prev => prev.map(d => d.id === docId ? {
+        ...d,
+        status: 'done',
+        institution: bankInfo.name,
+        txCount: result.transactions?.length ?? 0,
+        processedAt: new Date().toISOString(),
+        analysisResult: result,
+      } : d))
+
+      // Open review modal
+      setReviewDoc({
+        ...newDoc,
+        status: 'done',
+        institution: bankInfo.name,
+        txCount: result.transactions?.length ?? 0,
+        processedAt: new Date().toISOString(),
+        analysisResult: result,
+      })
+    } catch {
+      setDocuments(prev => prev.map(d => d.id === docId ? { ...d, status: 'error' } : d))
+    }
+  }, [])
+
+  const handleFiles = useCallback((files: File[]) => {
+    const valid = files.filter(f =>
+      ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg', 'image/webp'].includes(f.type)
+    )
+    valid.forEach(f => processFile(f))
+  }, [processFile])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setDragging(false)
-    const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf')
-    if (!files.length) return
-
-    const newDocs: Document[] = files.map(f => ({
-      id: `d${Date.now()}-${Math.random()}`,
-      filename: f.name,
-      type: 'invoice' as const,
-      status: 'pending' as const,
-      uploadedAt: new Date().toISOString(),
-      fileSize: f.size,
-    }))
-
-    setDocuments(prev => [...newDocs, ...prev])
-
-    // Simulate processing
-    newDocs.forEach(doc => {
-      setTimeout(() => {
-        setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, status: 'processing' } : d))
-      }, 1000)
-      setTimeout(() => {
-        setDocuments(prev => prev.map(d => d.id === doc.id ? {
-          ...d,
-          status: 'done',
-          txCount: Math.floor(Math.random() * 30) + 5,
-          processedAt: new Date().toISOString(),
-        } : d))
-      }, 4000)
-    })
-  }, [])
+    handleFiles(Array.from(e.dataTransfer.files))
+  }, [handleFiles])
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []).filter(f => f.type === 'application/pdf')
-    if (!files.length) return
-    const newDocs: Document[] = files.map(f => ({
-      id: `d${Date.now()}-${Math.random()}`,
-      filename: f.name,
-      type: 'invoice' as const,
-      status: 'pending' as const,
-      uploadedAt: new Date().toISOString(),
-      fileSize: f.size,
-    }))
-    setDocuments(prev => [...newDocs, ...prev])
+    handleFiles(Array.from(e.target.files || []))
   }
 
   const deleteDoc = (id: string) => {
     setDocuments(prev => prev.filter(d => d.id !== id))
-    if (selected === id) setSelected(null)
+    if (reviewDoc?.id === id) setReviewDoc(null)
+  }
+
+  // Import confirmed transactions
+  const confirmImport = () => {
+    if (!reviewDoc?.analysisResult || !user) return
+    const result = reviewDoc.analysisResult
+    const bankInfo = getBankInfo(result.bank ?? 'Banco')
+
+    // Find or create account
+    let accountId: string
+    const existing = accounts.find(a =>
+      a.institution.toLowerCase().includes((result.bank ?? '').toLowerCase()) ||
+      (result.bank ?? '').toLowerCase().includes(a.institution.toLowerCase())
+    )
+
+    if (existing) {
+      accountId = existing.id
+    } else {
+      const newAcc: Account = {
+        id: `acc-${Date.now()}`,
+        name: bankInfo.name,
+        institution: bankInfo.name,
+        type: (result.accountType as Account['type']) ?? 'checking',
+        balance: result.closingBalance ?? 0,
+        color: bankInfo.color,
+        gradient: bankInfo.gradient,
+        logo: bankInfo.logo,
+        lastSync: new Date().toISOString(),
+      }
+      setAccounts(prev => [...prev, newAcc])
+      accountId = newAcc.id
+      showToast(`Conta "${bankInfo.name}" criada e ${result.transactions.length} transações importadas!`)
+    }
+
+    // Import transactions
+    const newTxs: Transaction[] = (result.transactions ?? []).map((t, i) => {
+      const catInfo = getCatInfo(t.category)
+      return {
+        id: `tx-${Date.now()}-${i}`,
+        accountId,
+        description: t.description,
+        amount: t.type === 'debit' ? -Math.abs(t.amount) : Math.abs(t.amount),
+        type: t.type === 'credit' ? 'credit' : 'debit',
+        category: t.category || 'Outros',
+        categoryIcon: catInfo.icon,
+        categoryColor: catInfo.color,
+        date: t.date,
+      }
+    })
+
+    setTransactions(prev => [...newTxs, ...prev])
+
+    if (existing) {
+      showToast(`${result.transactions.length} transações importadas para "${bankInfo.name}"!`)
+    }
+
+    setReviewDoc(null)
   }
 
   const done = documents.filter(d => d.status === 'done')
@@ -91,14 +264,19 @@ export default function DocumentosPage() {
   const errors = documents.filter(d => d.status === 'error')
 
   const INST_COLORS: Record<string, string> = {
-    Nubank: '#8a05be',
-    Itaú: '#ec7000',
-    Sicoob: '#1a5f3a',
-    Sicredi: '#006b3f',
+    Nubank: '#8a05be', Itaú: '#ec7000', Sicoob: '#1a5f3a', Sicredi: '#006b3f',
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-[1200px]">
+    <div className="p-4 sm:p-6 space-y-6 max-w-4xl mx-auto">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-4 right-4 z-50 px-4 py-3 rounded-xl bg-emerald-500/15 border border-emerald-500/25 text-sm text-emerald-300 shadow-xl animate-slide-up max-w-sm">
+          {toast}
+        </div>
+      )}
+
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Documentos Financeiros</h1>
@@ -110,7 +288,7 @@ export default function DocumentosPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: 'Processados', value: done.length, color: '#10b981', sub: `${done.reduce((s, d) => s + (d.txCount || 0), 0)} transações extraídas` },
           { label: 'Processando', value: processing.length, color: '#3b82f6', sub: 'IA lendo agora' },
@@ -137,7 +315,13 @@ export default function DocumentosPage() {
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
       >
-        <input type="file" accept=".pdf" multiple className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleFileInput} />
+        <input
+          type="file"
+          accept=".pdf,.png,.jpg,.jpeg,.webp"
+          multiple
+          className="absolute inset-0 opacity-0 cursor-pointer"
+          onChange={handleFileInput}
+        />
 
         <div className={cn(
           'w-16 h-16 rounded-2xl flex items-center justify-center mb-4 transition-all duration-200',
@@ -147,13 +331,13 @@ export default function DocumentosPage() {
         </div>
 
         <p className="text-base font-semibold text-white mb-1">
-          {dragging ? 'Solte aqui para fazer upload' : 'Arraste PDFs ou clique para selecionar'}
+          {dragging ? 'Solte aqui para fazer upload' : 'Arraste arquivos ou clique para selecionar'}
         </p>
         <p className="text-sm text-slate-500 text-center max-w-sm">
-          Faturas, extratos, notas fiscais • A IA extrai e categoriza todas as transações automaticamente
+          PDF, PNG, JPG, WEBP • A IA extrai e categoriza todas as transações automaticamente
         </p>
 
-        <div className="flex items-center gap-4 mt-5">
+        <div className="flex items-center gap-4 mt-5 flex-wrap justify-center">
           {['Nubank', 'Itaú', 'Sicoob', 'Sicredi'].map(bank => (
             <div key={bank} className="flex items-center gap-1.5">
               <div
@@ -169,80 +353,169 @@ export default function DocumentosPage() {
       </label>
 
       {/* Documents list */}
-      <div className="rounded-2xl bg-[#16161E] border border-white/[0.06] shadow-card overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-          <h3 className="text-sm font-semibold text-white">Todos os documentos</h3>
-          <span className="text-xs text-slate-500">{documents.length} arquivos</span>
-        </div>
+      {documents.length > 0 && (
+        <div className="rounded-2xl bg-[#16161E] border border-white/[0.06] shadow-card overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+            <h3 className="text-sm font-semibold text-white">Documentos enviados</h3>
+            <span className="text-xs text-slate-500">{documents.length} arquivo{documents.length !== 1 ? 's' : ''}</span>
+          </div>
 
-        <div className="divide-y divide-white/[0.04]">
-          {documents.map(doc => {
-            const instColor = doc.institution ? INST_COLORS[doc.institution] : '#8b5cf6'
-            return (
-              <div
-                key={doc.id}
-                className={cn(
-                  'flex items-center gap-4 px-5 py-4 hover:bg-white/[0.02] transition-colors cursor-pointer',
-                  selected === doc.id && 'bg-primary-500/5'
-                )}
-                onClick={() => setSelected(doc.id === selected ? null : doc.id)}
-              >
-                <div className="w-10 h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center flex-shrink-0">
-                  <FileText className="w-5 h-5 text-rose-400" />
-                </div>
+          <div className="divide-y divide-white/[0.04]">
+            {documents.map(doc => {
+              const bankInfo = getBankInfo(doc.institution ?? '')
+              const instColor = doc.institution ? (INST_COLORS[doc.institution] ?? bankInfo.color) : '#8b5cf6'
+              return (
+                <div key={doc.id} className="flex items-center gap-4 px-5 py-4 hover:bg-white/[0.02] transition-colors">
+                  <div className="w-10 h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center flex-shrink-0">
+                    <FileText className="w-5 h-5 text-rose-400" />
+                  </div>
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-slate-200 truncate">{doc.filename}</p>
-                    {doc.institution && (
-                      <span
-                        className="text-[10px] px-2 py-0.5 rounded-full font-medium text-white flex-shrink-0"
-                        style={{ background: `${instColor}30`, color: instColor }}
-                      >
-                        {doc.institution}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium text-slate-200 truncate">{doc.filename}</p>
+                      {doc.institution && (
+                        <span
+                          className="text-[10px] px-2 py-0.5 rounded-full font-medium text-white flex-shrink-0"
+                          style={{ background: `${instColor}30`, color: instColor }}
+                        >
+                          {doc.institution}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 flex-wrap">
+                      <span className="text-xs text-slate-500">
+                        {doc.status === 'done' && doc.processedAt
+                          ? `Processado ${formatDate(doc.processedAt.slice(0, 10), 'short')}`
+                          : `Enviado ${formatDate(doc.uploadedAt.slice(0, 10), 'short')}`}
                       </span>
-                    )}
+                      <span className="text-xs text-slate-600">{formatSize(doc.fileSize)}</span>
+                      {doc.txCount !== undefined && (
+                        <span className="text-xs text-emerald-400">{doc.txCount} transações</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3 mt-1">
-                    <span className="text-xs text-slate-500">
-                      {doc.status === 'done' && doc.processedAt
-                        ? `Processado ${formatDate(doc.processedAt.slice(0, 10), 'short')}`
-                        : `Enviado ${formatDate(doc.uploadedAt.slice(0, 10), 'short')}`}
-                    </span>
-                    <span className="text-xs text-slate-600">{formatSize(doc.fileSize)}</span>
-                    {doc.txCount && (
-                      <span className="text-xs text-emerald-400">{doc.txCount} transações</span>
+
+                  <StatusBadge status={doc.status} />
+
+                  <div className="flex items-center gap-1">
+                    {doc.status === 'done' && doc.analysisResult && (
+                      <button
+                        onClick={() => setReviewDoc(doc)}
+                        className="px-3 py-1.5 rounded-lg bg-primary-500/10 text-xs text-primary-400 hover:bg-primary-500/20 transition-all flex-shrink-0"
+                      >
+                        Revisar
+                      </button>
                     )}
+                    <button
+                      onClick={() => deleteDoc(doc.id)}
+                      className="w-8 h-8 rounded-lg hover:bg-rose-500/10 flex items-center justify-center text-slate-600 hover:text-rose-400 transition-all"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
-                <StatusBadge status={doc.status} />
-
-                <div className="flex items-center gap-1">
-                  <button
-                    className="w-8 h-8 rounded-lg hover:bg-white/[0.06] flex items-center justify-center text-slate-500 hover:text-slate-300 transition-all"
-                    onClick={e => e.stopPropagation()}
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    className="w-8 h-8 rounded-lg hover:bg-white/[0.06] flex items-center justify-center text-slate-500 hover:text-slate-300 transition-all"
-                    onClick={e => e.stopPropagation()}
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={e => { e.stopPropagation(); deleteDoc(doc.id) }}
-                    className="w-8 h-8 rounded-lg hover:bg-rose-500/10 flex items-center justify-center text-slate-600 hover:text-rose-400 transition-all"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+      {/* Review modal */}
+      {reviewDoc?.analysisResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={() => setReviewDoc(null)} />
+          <div className="relative w-full max-w-2xl bg-[#16161E] border border-white/[0.10] rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06] flex-shrink-0">
+              <div className="flex items-center gap-3">
+                {(() => {
+                  const bi = getBankInfo(reviewDoc.analysisResult!.bank ?? '')
+                  return (
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
+                      style={{ background: `linear-gradient(135deg, ${bi.color}, ${bi.color}88)` }}
+                    >
+                      {bi.logo}
+                    </div>
+                  )
+                })()}
+                <div>
+                  <h3 className="text-sm font-semibold text-white">
+                    {reviewDoc.analysisResult.bank ?? 'Extrato'} — {reviewDoc.analysisResult.period ?? 'sem período'}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {reviewDoc.analysisResult.transactions.length} transações encontradas
+                    {reviewDoc.analysisResult.accountHolder ? ` • ${reviewDoc.analysisResult.accountHolder}` : ''}
+                  </p>
                 </div>
               </div>
-            )
-          })}
+              <button
+                onClick={() => setReviewDoc(null)}
+                className="w-7 h-7 rounded-lg hover:bg-white/[0.08] flex items-center justify-center text-slate-500 hover:text-slate-300"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Transactions table */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-1">
+              {reviewDoc.analysisResult.transactions.length === 0 ? (
+                <p className="text-sm text-slate-500 text-center py-8">Nenhuma transação extraída</p>
+              ) : (
+                reviewDoc.analysisResult.transactions.map((tx, i) => (
+                  <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.03] transition-colors">
+                    <div className={cn(
+                      'w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0',
+                      tx.type === 'credit' ? 'bg-emerald-500/15' : 'bg-rose-500/15'
+                    )}>
+                      {tx.type === 'credit'
+                        ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" />
+                        : <ArrowDownRight className="w-3.5 h-3.5 text-rose-400" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-slate-200 truncate">{tx.description}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] text-slate-500">{tx.date}</span>
+                        <span
+                          className="text-[10px] px-1.5 py-0.5 rounded-full"
+                          style={{
+                            background: `${getCatInfo(tx.category).color}18`,
+                            color: getCatInfo(tx.category).color,
+                          }}
+                        >
+                          {getCatInfo(tx.category).icon} {tx.category}
+                        </span>
+                      </div>
+                    </div>
+                    <p className={cn(
+                      'text-sm font-semibold tabular-nums flex-shrink-0',
+                      tx.type === 'credit' ? 'text-emerald-400' : 'text-rose-400'
+                    )}>
+                      {tx.type === 'credit' ? '+' : '-'}R$ {tx.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Modal footer */}
+            <div className="px-5 py-4 border-t border-white/[0.06] flex gap-3 flex-shrink-0">
+              <button
+                onClick={() => setReviewDoc(null)}
+                className="flex-1 py-2.5 rounded-xl bg-white/[0.04] text-sm text-slate-400 hover:text-slate-200 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmImport}
+                className="flex-1 py-2.5 rounded-xl btn-primary text-sm font-medium"
+              >
+                Confirmar e importar {reviewDoc.analysisResult.transactions.length} transações
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

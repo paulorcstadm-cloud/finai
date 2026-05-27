@@ -33,7 +33,7 @@ interface AuthCtx {
 
 const DEFAULT_NAV = [
   'dashboard', 'contas', 'faturas', 'contas-a-pagar',
-  'metas', 'assinaturas', 'chat', 'documentos', 'alertas',
+  'metas', 'assinaturas', 'chat', 'documentos', 'alertas', 'perfil',
 ]
 
 const DEFAULT_QUICK_PROMPTS = [

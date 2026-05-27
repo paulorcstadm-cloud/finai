@@ -6,8 +6,6 @@ import { useAuth } from '@/contexts/AuthContext'
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts'
 import { Target, Plus, Calendar, TrendingUp, Pencil, Trash2, Check, X, PlusCircle } from 'lucide-react'
 import { cn, formatCurrency, formatDate, percentage } from '@/lib/utils'
-import { GOALS } from '@/lib/mock-data'
-import { GABRIEL_INITIAL_GOALS } from '@/lib/users'
 import type { Goal } from '@/lib/types'
 
 function buildProjection(goal: Goal) {
@@ -36,10 +34,9 @@ function monthsToGoal(goal: Goal): number {
 }
 
 export default function MetasPage() {
-  const { user } = useAuth()
-  const initialGoals = user?.id === 'gabriel' ? GABRIEL_INITIAL_GOALS : GOALS
+  const { user: _user } = useAuth()
 
-  const [goals, setGoals] = useUserStorage<Goal[]>('finai_goals', initialGoals)
+  const [goals, setGoals] = useUserStorage<Goal[]>('finai_goals', [])
   const [selectedGoal, setSelectedGoal] = useState('')
   const [showAdd, setShowAdd] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
