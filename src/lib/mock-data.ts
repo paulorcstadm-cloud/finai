@@ -1,6 +1,6 @@
 import type {
   Account, Transaction, Goal, Subscription,
-  Installment, SplitExpense, Alert, ConsorcioData,
+  Installment, SplitExpense, Alert,
   MonthlySpend, CategorySpend, Document,
 } from './types'
 
@@ -65,22 +65,6 @@ export const ACCOUNTS: Account[] = [
   },
 ]
 
-// ─── Consórcio Sicredi (keep structure, zero numbers) ───────────────────────
-export const CONSORCIO: ConsorcioData = {
-  id: 'cons-sicredi-001',
-  institution: 'Sicredi Planalto Gaúcho',
-  originalValue: 80000,
-  currentValue: 83048,
-  monthlyPayment: 1030.13,
-  totalInstallments: 88,
-  paidInstallments: 0,
-  startDate: '2023-07-01',
-  type: 'Bens Móveis',
-  index: 'IPCA',
-  group: '0482',
-  quota: '034',
-}
-
 // ─── Empty defaults — user enters real data ──────────────────────────────────
 export const TRANSACTIONS: Transaction[] = []
 
@@ -109,11 +93,10 @@ export const MONTHLY_SPEND: MonthlySpend[] = [
 export const CATEGORY_SPEND: CategorySpend[] = []
 
 export const QUICK_PROMPTS = [
-  { label: 'Resumo do mês',    prompt: 'Como está minha situação financeira este mês?' },
-  { label: 'Consórcio',        prompt: 'Vale a pena adiantar parcelas do meu consórcio Sicredi?' },
+  { label: 'Resumo do mês',       prompt: 'Como está minha situação financeira este mês?' },
   { label: 'Onde cortar gastos?', prompt: 'Onde posso reduzir gastos sem impactar minha qualidade de vida?' },
-  { label: 'Investir',         prompt: 'Onde devo investir o dinheiro parado?' },
-  { label: 'Situação Gabriel', prompt: 'Me mostra o resumo de quanto o Gabriel me deve' },
+  { label: 'Investir',            prompt: 'Onde devo investir o dinheiro parado?' },
+  { label: 'Situação Gabriel',    prompt: 'Me mostra o resumo de quanto o Gabriel me deve' },
 ]
 
 export const AI_FINANCIAL_CONTEXT = `
@@ -123,7 +106,6 @@ INSTRUÇÕES:
 - Responda SEMPRE em português brasileiro
 - Seja direto, objetivo e acionável
 - Use os dados reais do usuário quando disponíveis
-- Quando falar de consórcio, confirme que é do Sicredi
 - Dê conselhos financeiros práticos e personalizados
 - Use emojis moderadamente para clareza
 `

@@ -9,7 +9,7 @@ import { useUserStorage } from '@/hooks/useUserStorage'
 import { createClient } from '@/lib/supabase/client'
 import type { Account } from '@/lib/types'
 import {
-  LayoutDashboard, Landmark, TrendingUp, Users, CreditCard,
+  LayoutDashboard, Landmark, Users, CreditCard,
   Target, MessageSquare, Upload, Bell, Repeat, Receipt,
   ChevronRight, Sparkles, LogOut, Settings, X, KeyRound,
   Check, Eye, EyeOff, RotateCcw,
@@ -18,8 +18,7 @@ import {
 const ALL_NAV = [
   { id: 'dashboard',  label: 'Dashboard',   href: '/dashboard',  icon: LayoutDashboard, color: '#818CF8' },
   { id: 'contas',     label: 'Contas',       href: '/contas',     icon: Landmark,        color: '#60A5FA' },
-  { id: 'consorcio',  label: 'Consórcio',   href: '/consorcio',  icon: TrendingUp,      color: '#34D399' },
-  { id: 'gabriel',    label: 'Gabriel',      href: '/gabriel',    icon: Users,           color: '#F9A8D4' },
+{ id: 'gabriel',    label: 'Gabriel',      href: '/gabriel',    icon: Users,           color: '#F9A8D4' },
   { id: 'faturas',    label: 'Faturas',      href: '/faturas',    icon: CreditCard,      color: '#FB7185' },
   { id: 'contas-a-pagar', label: 'Contas a Pagar', href: '/contas-a-pagar', icon: Receipt, color: '#FB923C' },
   { id: 'metas',      label: 'Metas',        href: '/metas',      icon: Target,          color: '#FCD34D' },

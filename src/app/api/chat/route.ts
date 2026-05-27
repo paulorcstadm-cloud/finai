@@ -4,23 +4,6 @@ import { AI_FINANCIAL_CONTEXT } from '@/lib/mock-data'
 // Smart fallback responses when no API key is configured
 const FALLBACK_RESPONSES: { pattern: RegExp; response: string }[] = [
   {
-    pattern: /consórcio|consorcio|antecipar|parcela/i,
-    response: `📋 **Análise do Consórcio Sicredi:**
-
-Situação atual:
-• Carta: R$ 83.048 (corrigida por IPCA de R$ 80.000)
-• Parcelas: 34/100 pagas — R$ 35.044 pagos
-• Faltam: 66 parcelas × R$ 1.030,13 = R$ 67.989
-• Término: jul/2031
-
-**Vale adiantar?**
-Com a Selic em ~10,5% a.a., o custo de oportunidade é relevante. Antecipando R$ 5.000 você elimina ~4,9 parcelas e economiza ~R$ 5.047 no total.
-
-💡 **Recomendação:** Se a carta vai ser usada para bem que vai gerar renda ou economia, manter é estratégico. Se é especulativo, avalie resgatar a carta e usar o dinheiro investido.
-
-Quer que eu simule algum valor específico de antecipação?`,
-  },
-  {
     pattern: /cortar|economizar|reduzir|gasto|economia/i,
     response: `✂️ **Onde cortar sem sentir — Maio 2026:**
 

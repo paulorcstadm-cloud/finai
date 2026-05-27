@@ -145,21 +145,6 @@ export interface ChatMessage {
   isLoading?: boolean
 }
 
-export interface ConsorcioData {
-  id: string
-  institution: string
-  originalValue: number
-  currentValue: number
-  monthlyPayment: number
-  totalInstallments: number
-  paidInstallments: number
-  startDate: string
-  type: string
-  index: string
-  group: string
-  quota: string
-}
-
 export interface MonthlySpend {
   month: string
   gastos: number

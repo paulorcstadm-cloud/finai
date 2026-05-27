@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import {
-  Bell, CheckCheck, Filter, CreditCard, TrendingUp,
+  Bell, CheckCheck, Filter, CreditCard,
   Target, Users, Repeat, Lightbulb, AlertTriangle, CheckCircle, Info,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -28,7 +28,6 @@ function SeverityIcon({ severity }: { severity: AlertSeverity }) {
 function TypeIcon({ type }: { type: string }) {
   const icons: Record<string, React.ReactNode> = {
     bill_due:       <CreditCard className="w-4 h-4" />,
-    consorcio:      <TrendingUp className="w-4 h-4" />,
     goal:           <Target className="w-4 h-4" />,
     gabriel:        <Users className="w-4 h-4" />,
     subscription:   <Repeat className="w-4 h-4" />,
