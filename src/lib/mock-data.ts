@@ -72,7 +72,7 @@ export const CONSORCIO: ConsorcioData = {
   originalValue: 80000,
   currentValue: 83048,
   monthlyPayment: 1030.13,
-  totalInstallments: 100,
+  totalInstallments: 88,
   paidInstallments: 0,
   startDate: '2023-07-01',
   type: 'Bens Móveis',
