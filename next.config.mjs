@@ -1,11 +1,22 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: {
-    // Type-checking via tsc already covers this; skip lint step during build
     ignoreDuringBuilds: true,
   },
   experimental: {
-    optimizePackageImports: ['lucide-react', 'recharts', 'framer-motion'],
+    optimizePackageImports: ['lucide-react', 'recharts'],
+    outputFileTracingExcludes: {
+      '*': [
+        'node_modules/@swc/core-linux-x64-gnu/**',
+        'node_modules/@swc/core-linux-x64-musl/**',
+        'node_modules/@esbuild/linux-x64/**',
+        'node_modules/webpack/**',
+        'node_modules/rollup/**',
+        'node_modules/esbuild/**',
+        'node_modules/typescript/**',
+        'node_modules/framer-motion/**',
+      ],
+    },
   },
 }
 
