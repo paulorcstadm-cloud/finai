@@ -20,7 +20,14 @@
       "Bash(npx tsc *)",
       "Bash(git init *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(gh auth *)",
+      "Bash(npx vercel *)",
+      "Bash(cat next.config.ts)",
+      "Bash(cat next.config.js)",
+      "Bash(cat next.config.mjs)",
+      "Bash(python3 -c \"import json,sys; p=json.load\\(sys.stdin\\); print\\('scripts:', list\\(p['scripts'].keys\\(\\)\\)\\); print\\('next:', p['dependencies'].get\\('next','?'\\)\\)\")",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('scripts:', Object.keys\\(p.scripts\\)\\); console.log\\('next:', p.dependencies.next\\)\")"
     ]
   }
 }
