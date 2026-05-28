@@ -135,6 +135,13 @@ export interface Bill {
   notes?: string
   createdAt: string
   paidAt?: string
+  /** Present when this bill belongs to an installment purchase */
+  installmentOf?: {
+    current: number             // 1-based installment number
+    total: number               // total number of installments
+    groupId: string             // shared ID across the installment group
+    totalPurchaseAmount: number // original full purchase price
+  }
 }
 
 export interface ChatMessage {

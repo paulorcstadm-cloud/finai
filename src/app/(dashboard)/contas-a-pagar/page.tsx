@@ -5,7 +5,7 @@ import { useUserStorage } from '@/hooks/useUserStorage'
 import type { Bill } from '@/lib/types'
 import {
   Plus, Receipt, CheckCircle2, Clock, AlertTriangle, X,
-  Pencil, Trash2, Banknote,
+  Pencil, Trash2, Banknote, CreditCard, Layers,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -55,8 +55,23 @@ function dueLabel(dateStr: string, overdue: boolean): { text: string; color: str
   return { text: formatted, color: '#64748B' }
 }
 
+// ─── Installment helpers ──────────────────────────────────────────────────────
+
+/** Splits a total into n installment amounts, distributing rounding to last */
+function splitInstallments(total: number, n: number): number[] {
+  const baseCents = Math.floor((total * 100) / n)
+  const remainder = Math.round(total * 100) - baseCents * n
+  const amounts = Array(n).fill(baseCents / 100) as number[]
+  amounts[n - 1] = Math.round((baseCents + remainder)) / 100
+  return amounts
+}
+
+const INSTALLMENT_OPTIONS = [2,3,4,5,6,7,8,9,10,11,12,15,18,21,24,30,36,48]
+
 const emptyForm = () => ({
   name: '', amount: '', dueDate: '', category: 'outros', recurrent: false, notes: '',
+  // Installment fields
+  parcelado: false, totalValue: '', installments: '2',
 })
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -129,9 +144,11 @@ export default function ContasAPagarPage() {
   }
 
   const handleSave = () => {
-    if (!form.name.trim() || !form.amount || !form.dueDate) return
     const cat = CATEGORIES.find(c => c.id === form.category) ?? CATEGORIES[CATEGORIES.length - 1]
+
+    // ── Edit existing bill (always single) ────────────────────────────────────
     if (editingBill) {
+      if (!form.name.trim() || !form.amount || !form.dueDate) return
       setBills(prev => prev.map(b => b.id !== editingBill.id ? b : {
         ...b,
         name: form.name.trim(),
@@ -143,23 +160,62 @@ export default function ContasAPagarPage() {
         recurrent: form.recurrent,
         notes: form.notes,
       }))
-    } else {
-      const bill: Bill = {
-        id: `bill-${Date.now()}`,
-        name: form.name.trim(),
-        amount: parseFloat(form.amount),
-        paidAmount: 0,
-        dueDate: form.dueDate,
-        category: form.category,
-        categoryIcon: cat.icon,
-        categoryColor: cat.color,
-        status: 'pending',
-        recurrent: form.recurrent,
-        notes: form.notes,
-        createdAt: new Date().toISOString(),
-      }
-      setBills(prev => [...prev, bill])
+      closeAddModal()
+      return
     }
+
+    // ── Create parcelado (installment) ────────────────────────────────────────
+    if (form.parcelado) {
+      const total = parseFloat(form.totalValue)
+      const n     = parseInt(form.installments)
+      if (!form.name.trim() || isNaN(total) || total <= 0 || isNaN(n) || n < 2 || !form.dueDate) return
+
+      const amounts  = splitInstallments(total, n)
+      const groupId  = `grp-${Date.now()}`
+      const firstDue = new Date(form.dueDate + 'T12:00:00') // noon avoids DST shifts
+
+      const newBills: Bill[] = amounts.map((amt, i) => {
+        const due = new Date(firstDue)
+        due.setMonth(due.getMonth() + i)
+        return {
+          id: `bill-${Date.now()}-${i}`,
+          name: `${form.name.trim()} (${i + 1}/${n})`,
+          amount: amt,
+          paidAmount: 0,
+          dueDate: due.toISOString().split('T')[0],
+          category: form.category,
+          categoryIcon: cat.icon,
+          categoryColor: cat.color,
+          status: 'pending' as const,
+          recurrent: false,
+          notes: form.notes || `Parcela ${i + 1} de ${n}`,
+          createdAt: new Date().toISOString(),
+          installmentOf: { current: i + 1, total: n, groupId, totalPurchaseAmount: total },
+        }
+      })
+
+      setBills(prev => [...prev, ...newBills])
+      closeAddModal()
+      return
+    }
+
+    // ── Create single bill ────────────────────────────────────────────────────
+    if (!form.name.trim() || !form.amount || !form.dueDate) return
+    const bill: Bill = {
+      id: `bill-${Date.now()}`,
+      name: form.name.trim(),
+      amount: parseFloat(form.amount),
+      paidAmount: 0,
+      dueDate: form.dueDate,
+      category: form.category,
+      categoryIcon: cat.icon,
+      categoryColor: cat.color,
+      status: 'pending',
+      recurrent: form.recurrent,
+      notes: form.notes,
+      createdAt: new Date().toISOString(),
+    }
+    setBills(prev => [...prev, bill])
     closeAddModal()
   }
 
@@ -169,6 +225,9 @@ export default function ContasAPagarPage() {
       amount: String(bill.amount),
       dueDate: bill.dueDate,
       category: bill.category,
+      parcelado: false,
+      totalValue: '',
+      installments: '2',
       recurrent: bill.recurrent,
       notes: bill.notes ?? '',
     })
@@ -338,7 +397,13 @@ export default function ContasAPagarPage() {
                     <p className={cn('text-sm font-medium truncate', bill.status === 'paid' ? 'text-slate-400' : 'text-white')}>
                       {bill.name}
                     </p>
-                    {bill.recurrent && (
+                    {bill.installmentOf && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-violet-500/15 text-violet-400 border border-violet-500/20 flex-shrink-0 hidden sm:inline flex items-center gap-1">
+                        <Layers className="w-2.5 h-2.5 inline" />
+                        {' '}{bill.installmentOf.current}/{bill.installmentOf.total}
+                      </span>
+                    )}
+                    {bill.recurrent && !bill.installmentOf && (
                       <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-primary-500/15 text-primary-400 border border-primary-500/20 flex-shrink-0 hidden sm:inline">
                         RECORRENTE
                       </span>
@@ -422,27 +487,127 @@ export default function ContasAPagarPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-slate-500 mb-1.5 block">Valor total *</label>
-                  <input
-                    type="number" min="0" step="0.01"
-                    value={form.amount}
-                    onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-                    placeholder="0,00"
-                    className="finai-input w-full px-3 py-2.5 text-sm text-white"
-                  />
+              {/* ── Parcelado toggle (only when creating) ──────────────────────── */}
+              {!editingBill && (
+                <div className="flex rounded-xl overflow-hidden border border-white/[0.08]">
+                  <button type="button"
+                    onClick={() => setForm(f => ({ ...f, parcelado: false }))}
+                    className={cn(
+                      'flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-medium transition-all',
+                      !form.parcelado
+                        ? 'bg-primary-500/20 text-primary-300 border-r border-primary-500/30'
+                        : 'bg-white/[0.02] text-slate-500 hover:text-slate-300 border-r border-white/[0.08]'
+                    )}>
+                    <Receipt className="w-3.5 h-3.5" />
+                    Conta simples
+                  </button>
+                  <button type="button"
+                    onClick={() => setForm(f => ({ ...f, parcelado: true }))}
+                    className={cn(
+                      'flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-medium transition-all',
+                      form.parcelado
+                        ? 'bg-violet-500/20 text-violet-300'
+                        : 'bg-white/[0.02] text-slate-500 hover:text-slate-300'
+                    )}>
+                    <CreditCard className="w-3.5 h-3.5" />
+                    Parcelado
+                  </button>
                 </div>
-                <div>
-                  <label className="text-xs text-slate-500 mb-1.5 block">Vencimento *</label>
-                  <input
-                    type="date"
-                    value={form.dueDate}
-                    onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
-                    className="finai-input w-full px-3 py-2.5 text-sm text-white"
-                  />
+              )}
+
+              {form.parcelado && !editingBill ? (
+                /* ── PARCELADO mode ──────────────────────────────────────────── */
+                <>
+                  {/* Total + installment count */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-slate-500 mb-1.5 block">Valor total da compra *</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs pointer-events-none">R$</span>
+                        <input
+                          type="number" min="0.01" step="0.01"
+                          value={form.totalValue}
+                          onChange={e => setForm(f => ({ ...f, totalValue: e.target.value }))}
+                          placeholder="0,00"
+                          className="finai-input w-full pl-8 pr-3 py-2.5 text-sm text-white"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500 mb-1.5 block">Número de parcelas *</label>
+                      <select
+                        value={form.installments}
+                        onChange={e => setForm(f => ({ ...f, installments: e.target.value }))}
+                        className="finai-input w-full px-3 py-2.5 text-sm text-white appearance-none"
+                      >
+                        {INSTALLMENT_OPTIONS.map(n => (
+                          <option key={n} value={n}>{n}x</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Live preview */}
+                  {form.totalValue && parseFloat(form.totalValue) > 0 && (() => {
+                    const total = parseFloat(form.totalValue)
+                    const n     = parseInt(form.installments)
+                    const each  = splitInstallments(total, n)
+                    return (
+                      <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-violet-500/10 border border-violet-500/20">
+                        <div className="flex items-center gap-2">
+                          <Layers className="w-4 h-4 text-violet-400" />
+                          <span className="text-xs text-violet-300 font-semibold">
+                            {n}x de {fmt(each[0])}
+                            {each[n - 1] !== each[0] && (
+                              <span className="text-violet-400/70 font-normal"> (última: {fmt(each[n - 1])})</span>
+                            )}
+                          </span>
+                        </div>
+                        <span className="text-xs text-slate-500">= {fmt(total)}</span>
+                      </div>
+                    )
+                  })()}
+
+                  {/* First due date */}
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1.5 block">Data do 1º vencimento *</label>
+                    <input
+                      type="date"
+                      value={form.dueDate}
+                      onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
+                      className="finai-input w-full px-3 py-2.5 text-sm text-white"
+                    />
+                    {form.dueDate && parseInt(form.installments) > 1 && (
+                      <p className="text-[10px] text-slate-600 mt-1">
+                        Os próximos vencimentos serão gerados mensalmente a partir desta data.
+                      </p>
+                    )}
+                  </div>
+                </>
+              ) : (
+                /* ── SIMPLES mode (default) ──────────────────────────────────── */
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1.5 block">Valor total *</label>
+                    <input
+                      type="number" min="0" step="0.01"
+                      value={form.amount}
+                      onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+                      placeholder="0,00"
+                      className="finai-input w-full px-3 py-2.5 text-sm text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-500 mb-1.5 block">Vencimento *</label>
+                    <input
+                      type="date"
+                      value={form.dueDate}
+                      onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
+                      className="finai-input w-full px-3 py-2.5 text-sm text-white"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div>
                 <label className="text-xs text-slate-500 mb-1.5 block">Categoria</label>
@@ -473,18 +638,20 @@ export default function ContasAPagarPage() {
                 />
               </div>
 
-              <label className="flex items-center gap-3 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] cursor-pointer hover:border-white/[0.12] transition-all">
-                <input
-                  type="checkbox"
-                  checked={form.recurrent}
-                  onChange={e => setForm(f => ({ ...f, recurrent: e.target.checked }))}
-                  className="w-4 h-4 rounded accent-indigo-500"
-                />
-                <div>
-                  <p className="text-xs font-medium text-slate-300">Conta recorrente</p>
-                  <p className="text-[10px] text-slate-600">Repete todo mês nesta data de vencimento</p>
-                </div>
-              </label>
+              {!form.parcelado && (
+                <label className="flex items-center gap-3 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02] cursor-pointer hover:border-white/[0.12] transition-all">
+                  <input
+                    type="checkbox"
+                    checked={form.recurrent}
+                    onChange={e => setForm(f => ({ ...f, recurrent: e.target.checked }))}
+                    className="w-4 h-4 rounded accent-indigo-500"
+                  />
+                  <div>
+                    <p className="text-xs font-medium text-slate-300">Conta recorrente</p>
+                    <p className="text-[10px] text-slate-600">Repete todo mês nesta data de vencimento</p>
+                  </div>
+                </label>
+              )}
             </div>
 
             <div className="flex gap-3 mt-6">
@@ -494,9 +661,18 @@ export default function ContasAPagarPage() {
               </button>
               <button
                 onClick={handleSave}
-                disabled={!form.name.trim() || !form.amount || !form.dueDate}
+                disabled={
+                  !form.name.trim() || !form.dueDate ||
+                  (form.parcelado && !editingBill
+                    ? !form.totalValue || parseFloat(form.totalValue) <= 0
+                    : !form.amount)
+                }
                 className="flex-1 py-2.5 rounded-xl btn-primary text-sm disabled:opacity-40">
-                {editingBill ? 'Salvar' : 'Adicionar'}
+                {editingBill
+                  ? 'Salvar'
+                  : form.parcelado
+                    ? `Criar ${form.installments}x parcelas`
+                    : 'Adicionar'}
               </button>
             </div>
           </div>
