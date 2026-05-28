@@ -11,20 +11,23 @@ import {
   LayoutDashboard, Landmark, CreditCard,
   Target, MessageSquare, Upload, Bell, Repeat, Receipt,
   ChevronRight, Sparkles, LogOut, Settings, X,
-  RotateCcw, UserCog,
+  RotateCcw, UserCog, Activity,
 } from 'lucide-react'
+import { calculateFinancialScore } from '@/lib/utils'
+import type { Transaction, Goal, Bill } from '@/lib/types'
 
 const ALL_NAV = [
-  { id: 'dashboard',  label: 'Dashboard',   href: '/dashboard',  icon: LayoutDashboard, color: '#818CF8' },
-  { id: 'contas',     label: 'Contas',       href: '/contas',     icon: Landmark,        color: '#60A5FA' },
-  { id: 'faturas',    label: 'Faturas',      href: '/faturas',    icon: CreditCard,      color: '#FB7185' },
-  { id: 'contas-a-pagar', label: 'Contas a Pagar', href: '/contas-a-pagar', icon: Receipt, color: '#FB923C' },
-  { id: 'metas',      label: 'Metas',        href: '/metas',      icon: Target,          color: '#FCD34D' },
-  { id: 'assinaturas',label: 'Assinaturas',  href: '/assinaturas',icon: Repeat,          color: '#A78BFA' },
-  { id: 'chat',       label: 'CFO IA',       href: '/chat',       icon: MessageSquare,   color: '#67E8F9' },
-  { id: 'documentos', label: 'Documentos',   href: '/documentos', icon: Upload,          color: '#94A3B8' },
-  { id: 'alertas',    label: 'Alertas',      href: '/alertas',    icon: Bell,            color: '#FB7185' },
-  { id: 'perfil',     label: 'Meu Perfil',   href: '/perfil',     icon: UserCog,         color: '#818CF8' },
+  { id: 'dashboard',      label: 'Dashboard',       href: '/dashboard',      icon: LayoutDashboard, color: '#818CF8' },
+  { id: 'contas',         label: 'Contas',           href: '/contas',         icon: Landmark,        color: '#60A5FA' },
+  { id: 'faturas',        label: 'Faturas',          href: '/faturas',        icon: CreditCard,      color: '#FB7185' },
+  { id: 'contas-a-pagar', label: 'Contas a Pagar',   href: '/contas-a-pagar', icon: Receipt,         color: '#FB923C' },
+  { id: 'metas',          label: 'Metas',            href: '/metas',          icon: Target,          color: '#FCD34D' },
+  { id: 'assinaturas',    label: 'Assinaturas',      href: '/assinaturas',    icon: Repeat,          color: '#A78BFA' },
+  { id: 'score',          label: 'Score FinAI',      href: '/score',          icon: Activity,        color: '#F59E0B' },
+  { id: 'chat',           label: 'CFO IA',           href: '/chat',           icon: MessageSquare,   color: '#67E8F9' },
+  { id: 'documentos',     label: 'Documentos',       href: '/documentos',     icon: Upload,          color: '#94A3B8' },
+  { id: 'alertas',        label: 'Alertas',          href: '/alertas',        icon: Bell,            color: '#FB7185' },
+  { id: 'perfil',         label: 'Meu Perfil',       href: '/perfil',         icon: UserCog,         color: '#818CF8' },
 ]
 
 export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
@@ -32,9 +35,24 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
   const router = useRouter()
   const { user, logout } = useAuth()
 
-  // Live total balance from user accounts
+  // Live financial data for score and balance
   const [accounts] = useUserStorage<Account[]>('finai_accounts', [])
+  const [transactions] = useUserStorage<Transaction[]>('finai_transactions', [])
+  const [goals] = useUserStorage<Goal[]>('finai_goals', [])
+  const [bills] = useUserStorage<Bill[]>('finai_bills', [])
+  const [income] = useUserStorage<number>('finai_income', 0)
+
   const totalBalance = accounts.reduce((s, a) => s + a.balance, 0)
+
+  const now = new Date()
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const monthExpenses = transactions
+    .filter(t => t.type === 'debit' && t.date.startsWith(currentMonth))
+    .reduce((s, t) => s + Math.abs(t.amount), 0)
+
+  const liveScore =
+    calculateFinancialScore({ income, monthExpenses, totalBalance, accounts, goals, bills })
+    ?? (user?.score ?? 742)
 
   // Pulsing live dot
   const [livePulse, setLivePulse] = useState(true)
@@ -149,20 +167,29 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
           })}
         </nav>
 
-        {/* Score */}
-        <div className="mx-4 mb-3 mt-2 p-3 rounded-xl border border-primary-500/12 bg-[rgba(22,22,30,0.6)] flex-shrink-0">
+        {/* Score — live calculation */}
+        <Link href="/score" onClick={onClose} className="mx-4 mb-3 mt-2 p-3 rounded-xl border border-primary-500/12 bg-[rgba(22,22,30,0.6)] flex-shrink-0 hover:border-amber-500/20 hover:bg-amber-500/5 transition-all group">
           <div className="flex justify-between mb-1.5">
             <span className="text-[10px] text-slate-500 uppercase tracking-wider">Score FinAI</span>
-            <span className="text-xs font-bold text-amber-400">{user?.score ?? 742}</span>
+            <span className="text-xs font-bold text-amber-400 group-hover:text-amber-300">{liveScore}</span>
           </div>
           <div className="w-full h-1.5 rounded-full bg-white/5">
-            <div className="h-1.5 rounded-full transition-all duration-1000" style={{ width: `${((user?.score ?? 742) / 1000) * 100}%`, background: 'linear-gradient(90deg,#f59e0b,#f97316)', boxShadow: '0 0 8px rgba(245,158,11,0.4)' }} />
+            <div
+              className="h-1.5 rounded-full transition-all duration-1000"
+              style={{
+                width: `${(liveScore / 1000) * 100}%`,
+                background: 'linear-gradient(90deg,#f59e0b,#f97316)',
+                boxShadow: '0 0 8px rgba(245,158,11,0.4)',
+              }}
+            />
           </div>
           <div className="flex justify-between mt-1">
-            <span className="text-[10px] text-amber-400">{(user?.score ?? 742) >= 750 ? 'Bom' : 'Regular'}</span>
-            <span className="text-[10px] text-slate-600">Meta: 800</span>
+            <span className="text-[10px] text-amber-400">
+              {liveScore >= 800 ? 'Excelente' : liveScore >= 650 ? 'Bom' : liveScore >= 500 ? 'Regular' : 'Atenção'}
+            </span>
+            <span className="text-[10px] text-slate-600">Ver detalhes →</span>
           </div>
-        </div>
+        </Link>
 
         {/* User section — redesigned */}
         <div className="border-t border-white/[0.06] p-3 flex-shrink-0">

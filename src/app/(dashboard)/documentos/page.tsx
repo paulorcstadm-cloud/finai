@@ -63,9 +63,10 @@ interface AnalysisResult {
   closingBalance: number | null
 }
 
-interface PendingDoc extends Document {
+// Stored document (serializable — no File or other non-JSON objects)
+type StoredDoc = Omit<Document, 'type'> & {
+  type: string
   analysisResult?: AnalysisResult
-  rawFile?: File
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -92,7 +93,7 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-// ─── Category map for new transactions ───────────────────────────────────────
+// ─── Category map ─────────────────────────────────────────────────────────────
 
 const CAT_MAP: Record<string, { icon: string; color: string }> = {
   'Alimentação': { icon: '🍽️', color: '#4ADE80' },
@@ -114,11 +115,14 @@ function getCatInfo(cat: string) {
 
 export default function DocumentosPage() {
   const { user } = useAuth()
-  const [documents, setDocuments] = useState<PendingDoc[]>([])
+
+  // Documents persisted in localStorage per user
+  const [documents, setDocuments] = useUserStorage<StoredDoc[]>('finai_documents', [])
   const [dragging, setDragging] = useState(false)
-  const [reviewDoc, setReviewDoc] = useState<PendingDoc | null>(null)
+  const [reviewDoc, setReviewDoc] = useState<StoredDoc | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
+  // Real accounts & transactions from localStorage
   const [accounts, setAccounts] = useUserStorage<Account[]>('finai_accounts', [])
   const [transactions, setTransactions] = useUserStorage<Transaction[]>('finai_transactions', [])
 
@@ -129,14 +133,13 @@ export default function DocumentosPage() {
 
   const processFile = useCallback(async (file: File) => {
     const docId = `d${Date.now()}-${Math.random().toString(36).slice(2)}`
-    const newDoc: PendingDoc = {
+    const newDoc: StoredDoc = {
       id: docId,
       filename: file.name,
       type: 'invoice',
       status: 'processing',
       uploadedAt: new Date().toISOString(),
       fileSize: file.size,
-      rawFile: file,
     }
 
     setDocuments(prev => [newDoc, ...prev])
@@ -156,28 +159,23 @@ export default function DocumentosPage() {
       const result: AnalysisResult = json.data
       const bankInfo = getBankInfo(result.bank ?? 'Banco')
 
-      setDocuments(prev => prev.map(d => d.id === docId ? {
-        ...d,
-        status: 'done',
-        institution: bankInfo.name,
-        txCount: result.transactions?.length ?? 0,
-        processedAt: new Date().toISOString(),
-        analysisResult: result,
-      } : d))
-
-      // Open review modal
-      setReviewDoc({
+      const updated: StoredDoc = {
         ...newDoc,
         status: 'done',
         institution: bankInfo.name,
         txCount: result.transactions?.length ?? 0,
         processedAt: new Date().toISOString(),
         analysisResult: result,
-      })
+      }
+
+      setDocuments(prev => prev.map(d => d.id === docId ? updated : d))
+
+      // Open review modal
+      setReviewDoc(updated)
     } catch {
       setDocuments(prev => prev.map(d => d.id === docId ? { ...d, status: 'error' } : d))
     }
-  }, [])
+  }, [setDocuments])
 
   const handleFiles = useCallback((files: File[]) => {
     const valid = files.filter(f =>
@@ -194,6 +192,8 @@ export default function DocumentosPage() {
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     handleFiles(Array.from(e.target.files || []))
+    // Reset input so same file can be re-uploaded
+    e.target.value = ''
   }
 
   const deleteDoc = (id: string) => {
@@ -255,17 +255,17 @@ export default function DocumentosPage() {
       showToast(`${result.transactions.length} transações importadas para "${bankInfo.name}"!`)
     }
 
+    // Clear analysisResult from stored doc (save space)
+    setDocuments(prev => prev.map(d =>
+      d.id === reviewDoc.id ? { ...d, analysisResult: undefined } : d
+    ))
     setReviewDoc(null)
   }
 
-  const done = documents.filter(d => d.status === 'done')
+  const done       = documents.filter(d => d.status === 'done')
   const processing = documents.filter(d => d.status === 'processing')
-  const pending = documents.filter(d => d.status === 'pending')
-  const errors = documents.filter(d => d.status === 'error')
-
-  const INST_COLORS: Record<string, string> = {
-    Nubank: '#8a05be', Itaú: '#ec7000', Sicoob: '#1a5f3a', Sicredi: '#006b3f',
-  }
+  const pending    = documents.filter(d => d.status === 'pending')
+  const errors     = documents.filter(d => d.status === 'error')
 
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-4xl mx-auto">
@@ -282,18 +282,16 @@ export default function DocumentosPage() {
           <h1 className="text-2xl font-bold text-white">Documentos Financeiros</h1>
           <p className="text-sm text-slate-500 mt-0.5">Upload de faturas e extratos para leitura automática com IA</p>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-slate-500">{done.length} processados · {processing.length} processando</span>
-        </div>
+        <span className="text-xs text-slate-500">{done.length} processados · {processing.length} processando</span>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Processados', value: done.length, color: '#10b981', sub: `${done.reduce((s, d) => s + (d.txCount || 0), 0)} transações extraídas` },
+          { label: 'Processados', value: done.length,       color: '#10b981', sub: `${done.reduce((s, d) => s + (d.txCount || 0), 0)} transações extraídas` },
           { label: 'Processando', value: processing.length, color: '#3b82f6', sub: 'IA lendo agora' },
-          { label: 'Pendentes', value: pending.length, color: '#f59e0b', sub: 'na fila' },
-          { label: 'Com erro', value: errors.length, color: '#f43f5e', sub: 'reprocessar' },
+          { label: 'Pendentes',   value: pending.length,    color: '#f59e0b', sub: 'na fila' },
+          { label: 'Com erro',    value: errors.length,     color: '#f43f5e', sub: 'reprocessar' },
         ].map(({ label, value, color, sub }) => (
           <div key={label} className="rounded-2xl bg-[#16161E] border border-white/[0.06] p-4">
             <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">{label}</p>
@@ -337,18 +335,25 @@ export default function DocumentosPage() {
           PDF, PNG, JPG, WEBP • A IA extrai e categoriza todas as transações automaticamente
         </p>
 
-        <div className="flex items-center gap-4 mt-5 flex-wrap justify-center">
-          {['Nubank', 'Itaú', 'Sicoob', 'Sicredi'].map(bank => (
-            <div key={bank} className="flex items-center gap-1.5">
-              <div
-                className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold text-white"
-                style={{ background: INST_COLORS[bank] }}
-              >
-                {bank.slice(0, 2).toUpperCase()}
+        {/* Detected banks — show user's real accounts, or hint text if none */}
+        <div className="flex items-center gap-3 mt-5 flex-wrap justify-center">
+          {accounts.length > 0 ? (
+            accounts.map(acc => (
+              <div key={acc.id} className="flex items-center gap-1.5">
+                <div
+                  className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold text-white"
+                  style={{ background: acc.color }}
+                >
+                  {acc.logo}
+                </div>
+                <span className="text-xs text-slate-500">{acc.institution}</span>
               </div>
-              <span className="text-xs text-slate-500">{bank}</span>
-            </div>
-          ))}
+            ))
+          ) : (
+            <span className="text-xs text-slate-600">
+              Nubank, Itaú, Sicoob, Sicredi e outros detectados automaticamente
+            </span>
+          )}
         </div>
       </label>
 
@@ -363,7 +368,7 @@ export default function DocumentosPage() {
           <div className="divide-y divide-white/[0.04]">
             {documents.map(doc => {
               const bankInfo = getBankInfo(doc.institution ?? '')
-              const instColor = doc.institution ? (INST_COLORS[doc.institution] ?? bankInfo.color) : '#8b5cf6'
+              const instColor = doc.institution ? bankInfo.color : '#8b5cf6'
               return (
                 <div key={doc.id} className="flex items-center gap-4 px-5 py-4 hover:bg-white/[0.02] transition-colors">
                   <div className="w-10 h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center flex-shrink-0">
@@ -375,8 +380,8 @@ export default function DocumentosPage() {
                       <p className="text-sm font-medium text-slate-200 truncate">{doc.filename}</p>
                       {doc.institution && (
                         <span
-                          className="text-[10px] px-2 py-0.5 rounded-full font-medium text-white flex-shrink-0"
-                          style={{ background: `${instColor}30`, color: instColor }}
+                          className="text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0"
+                          style={{ background: `${instColor}25`, color: instColor }}
                         >
                           {doc.institution}
                         </span>
@@ -405,6 +410,9 @@ export default function DocumentosPage() {
                       >
                         Revisar
                       </button>
+                    )}
+                    {doc.status === 'error' && (
+                      <span className="text-[10px] text-rose-400/60 px-2">Falha no processamento</span>
                     )}
                     <button
                       onClick={() => deleteDoc(doc.id)}

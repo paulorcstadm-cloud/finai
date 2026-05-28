@@ -73,3 +73,56 @@ export function abbreviate(value: number): string {
   if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`
   return value.toString()
 }
+
+/** Calculate a live financial health score (0-1000) based on real user data.
+ *  Returns null when there is no financial data yet (caller should show default). */
+export function calculateFinancialScore(params: {
+  income: number
+  monthExpenses: number
+  totalBalance: number
+  accounts: { type: string }[]
+  goals: { currentAmount: number; targetAmount: number; status: string }[]
+  bills: { status: string; dueDate: string }[]
+}): number | null {
+  const { income, monthExpenses, totalBalance, accounts, goals, bills } = params
+  const hasData = accounts.length > 0 || goals.length > 0 || bills.length > 0
+  if (!hasData) return null
+
+  let score = 550 // base for anyone who started using the app
+
+  // ── Savings rate: -200 to +200 ──────────────────────────────────────────────
+  if (income > 0) {
+    const rate = (income - monthExpenses) / income
+    if (rate >= 0.30) score += 200
+    else if (rate >= 0.20) score += 150
+    else if (rate >= 0.10) score += 80
+    else if (rate >= 0.00) score += 20
+    else score -= 120 // spending more than income
+  }
+
+  // ── Emergency fund (balance / income in months): -100 to +100 ───────────────
+  if (income > 0) {
+    const months = totalBalance / income
+    if (months >= 6) score += 100
+    else if (months >= 3) score += 60
+    else if (months >= 1) score += 20
+    else if (totalBalance < 0) score -= 100
+  }
+
+  // ── Goals progress: 0 to +100 ───────────────────────────────────────────────
+  const activeGoals = goals.filter(g => g.status === 'active')
+  if (activeGoals.length > 0) {
+    const avgPct = activeGoals.reduce(
+      (s, g) => s + (g.targetAmount > 0 ? g.currentAmount / g.targetAmount : 0),
+      0
+    ) / activeGoals.length
+    score += Math.round(avgPct * 100)
+  }
+
+  // ── Overdue bills penalty: -40 per overdue bill ──────────────────────────────
+  const today = new Date().toISOString().slice(0, 10)
+  const overdueCount = bills.filter(b => b.status === 'pending' && b.dueDate < today).length
+  score -= overdueCount * 40
+
+  return Math.min(1000, Math.max(0, score))
+}

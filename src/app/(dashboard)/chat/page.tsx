@@ -2,41 +2,10 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { Send, Sparkles, RefreshCw, Trash2, Copy, Check } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, formatCurrency, calculateFinancialScore } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
-import type { ChatMessage } from '@/lib/types'
-
-const FALLBACK_RESPONSES_PAULO: Record<string, string> = {
-  cortar: `**Onde cortar gastos — Análise de maio/2026** ✂️\n\nAnalisando seus gastos atuais:\n\n🔴 **Prioridade alta:**\n• Assinaturas inativas (Adobe Creative): R$ 249/ano sem uso\n\n🟡 **Considerar:**\n• Alimentação R$ 514,80 (+23% acima da média) — tente reduzir delivery\n• Parcelamentos R$ 512,25/mês — evite novos por ora\n\n✅ **Positivo:** Sua taxa de poupança está em 23% — acima dos 20% recomendados!\n\n**Ação imediata:** Cancele o Adobe Creative e economize R$ 20,75/mês.`,
-  europa: `**Meta Viagem Europa 2027** ✈️\n\nProgresso atual: R$ 4.200 / R$ 25.000 (17%)\n\nCom R$ 800/mês de aporte:\n• Atingirá a meta em **~26 meses** → ago/2028\n\nPara ir em **junho/2027** (seu prazo), você precisaria de:\n• **R$ 1.733/mês** nos próximos 12 meses\n\n**Estratégia recomendada:**\n1. Mantenha R$ 800/mês na meta Europa\n2. Cancele assinaturas inativas (+R$ 21/mês)\n3. Reduza delivery em 30% (→ +R$ 154/mês)\n\nCom essas mudanças: meta atingida em **jan/2027** 🎯`,
-  score: `**Como chegar em 800 no Score FinAI** 📈\n\nScore atual: **742** → Meta: 800 (+58 pontos)\n\nFatores para aumentar:\n1. ✅ **Pague a fatura Nubank** antes do vencimento (29/mai) — evita juros e melhora histórico (+8 pts)\n2. 📉 **Reduza utilização do cartão** abaixo de 30% do limite (+10 pts)\n3. 💰 **Mantenha reserva de emergência** acima de R$ 15k (+7 pts)\n4. 🔄 **Consistência nos aportes** das metas por 3 meses seguidos (+12 pts)\n5. ❌ **Cancele assinaturas inativas** — menos risco de inadimplência (+5 pts)\n\n**Prazo estimado para 800:** ~4-5 meses com disciplina`,
-  investimento: `**Onde investir o dinheiro parado** 💹\n\nVocê tem R$ 8.420 na poupança Sicredi rendendo ~0,5% a.m.\n\n**Comparação de alternativas:**\n\n📊 **Tesouro Selic (SELIC ~10,75% a.a.)**\n• Risco: baixíssimo | Liquidez: D+1\n• Rendimento anual: ~R$ 905 vs R$ 505 da poupança\n\n📊 **CDB 100% CDI**\n• Risco: baixo (FGC até R$ 250k)\n• Rendimento: similar ao Tesouro Selic\n\n📊 **Tesouro IPCA+**\n• Proteção contra inflação + juro real\n• Ideal para objetivos de longo prazo\n\n**Minha recomendação:** Mantenha R$ 3k como reserva de emergência na poupança, e mova R$ 5k para Tesouro Selic.`,
-  default: `Entendido! Baseado no seu perfil financeiro:\n\n💡 **Situação geral:** Você está indo bem — taxa de poupança de 23%, score 742.\n\n⚠️ **Atenção imediata:**\n• Fatura Nubank vence em 3 dias (R$ 1.240,87)\n\nPosso ajudar com análise de gastos, metas, situação com Gabriel ou sugestões de investimento. O que você gostaria de explorar?`,
-}
-
-const FALLBACK_RESPONSES_GABRIEL: Record<string, string> = {
-  meta: `**Suas metas financeiras** 🎯\n\nVocê tem 3 metas ativas:\n\n🛡️ **Reserva de emergência**: R$ 2.500 / R$ 10.000 (25%)\n• Com R$ 400/mês: concluída em ~19 meses\n\n🚗 **Carro próprio**: R$ 3.200 / R$ 35.000 (9%)\n• Com R$ 600/mês: ~53 meses\n\n✈️ **Viagem Disney**: R$ 750 / R$ 8.000 (9%)\n• Com R$ 300/mês: ~24 meses\n\n**Minha recomendação:** Priorize a reserva de emergência primeiro — é sua rede de segurança.`,
-  economizar: `**Como economizar mais este mês** ✂️\n\nAnalisando seu perfil:\n\n🔴 **Reduza delivery (iFood)**\n• Você gastou R$ 89,60 este mês\n• Meta: R$ 60/mês → economia de R$ 30\n\n🟡 **Otimize assinaturas**\n• Spotify + Netflix = R$ 77,80/mês\n• Considere plano familiar se possível\n\n✅ **Positivo:** Seu aluguel representa apenas 30% da renda — está dentro do ideal!\n\n**Potencial de economia:** R$ 80-120/mês com pequenos ajustes.`,
-  fatura: `**Situação do cartão Nubank** 💳\n\nFatura atual: **R$ 487,50**\nVencimento: 05/jun/2026 (9 dias)\n\nLançamentos recentes:\n• iFood: R$ 89,60\n• Spotify: R$ 21,90\n• Netflix: R$ 55,90\n• Mercado: R$ 124,30\n\n✅ A fatura está dentro do esperado para seu perfil.\n\n**Atenção:** Pague em dia para manter o score e evitar juros de ~15% a.m.`,
-  investimento: `**Onde investir com seu perfil** 💹\n\nSaldo disponível: **R$ 5.047,80**\nReserva de emergência recomendada: R$ 10.000\n\nPor isso você ainda **não está pronto** para investimentos de risco. Recomendo:\n\n1. 🛡️ **Prioridade:** Complete a reserva de emergência (faltam R$ 7.500)\n2. 💰 **Enquanto isso:** Guarde no CDB/Tesouro Selic (rende ~10,75% a.a. com liquidez diária)\n3. 📈 **Depois:** Com reserva completa, explore Tesouro IPCA+ e ações\n\n**Meta:** Construa primeiro a base sólida!`,
-  default: `Olá, Gabriel! 👋 Baseado no seu perfil:\n\n💡 **Situação atual:** Você está no começo da jornada financeira — isso é ótimo!\n\n📊 **Destaques:**\n• Saldo total: R$ 5.047,80\n• Score: 685 (crescendo!)\n• Fatura OK: R$ 487,50 (vence em 9 dias)\n\n🎯 **Próximo passo recomendado:** Focar em construir sua reserva de emergência (R$ 10.000). Você já tem R$ 2.500 — continue!\n\nPosso ajudar com metas, orçamento, fatura ou estratégias de investimento. O que deseja explorar?`,
-}
-
-function getFallback(msg: string, isGabriel: boolean): string {
-  const lower = msg.toLowerCase()
-  if (isGabriel) {
-    if (/meta|objetivo|economiz|poupar/i.test(lower)) return FALLBACK_RESPONSES_GABRIEL.meta
-    if (/economizar|cortar|reduzir|gastar menos/i.test(lower)) return FALLBACK_RESPONSES_GABRIEL.economizar
-    if (/fatura|cartão|nubank/i.test(lower)) return FALLBACK_RESPONSES_GABRIEL.fatura
-    if (/invest|aplicar|dinheiro parado|renda/i.test(lower)) return FALLBACK_RESPONSES_GABRIEL.investimento
-    return FALLBACK_RESPONSES_GABRIEL.default
-  }
-  if (/cortar|economiz|redu[zc]/i.test(lower)) return FALLBACK_RESPONSES_PAULO.cortar
-  if (/europa|viagem|meta/i.test(lower)) return FALLBACK_RESPONSES_PAULO.europa
-  if (/score|pontos|800/i.test(lower)) return FALLBACK_RESPONSES_PAULO.score
-  if (/invest|aplicar|dinheiro parado/i.test(lower)) return FALLBACK_RESPONSES_PAULO.investimento
-  return FALLBACK_RESPONSES_PAULO.default
-}
+import { useUserStorage } from '@/hooks/useUserStorage'
+import type { ChatMessage, Account, Transaction, Goal, Bill, Subscription, Alert } from '@/lib/types'
 
 function TypingIndicator() {
   return (
@@ -70,7 +39,88 @@ function MessageContent({ content }: { content: string }) {
 
 export default function ChatPage() {
   const { user } = useAuth()
-  const isGabriel = user?.id === 'gabriel'
+
+  // ── Real financial data from localStorage ────────────────────────────────────
+  const [accounts] = useUserStorage<Account[]>('finai_accounts', [])
+  const [transactions] = useUserStorage<Transaction[]>('finai_transactions', [])
+  const [goals] = useUserStorage<Goal[]>('finai_goals', [])
+  const [bills] = useUserStorage<Bill[]>('finai_bills', [])
+  const [subscriptions] = useUserStorage<Subscription[]>('finai_subscriptions', [])
+  const [alerts] = useUserStorage<Alert[]>('finai_alerts', [])
+  const [income] = useUserStorage<number>('finai_income', 0)
+
+  const now = new Date()
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
+  const totalBalance = useMemo(
+    () => accounts.reduce((s, a) => s + a.balance, 0),
+    [accounts]
+  )
+
+  const monthExpenses = useMemo(
+    () => transactions
+      .filter(t => t.type === 'debit' && t.date.startsWith(currentMonth))
+      .reduce((s, t) => s + Math.abs(t.amount), 0),
+    [transactions, currentMonth]
+  )
+
+  const subscriptionsMonthly = useMemo(
+    () => subscriptions
+      .filter(s => s.isActive)
+      .reduce((sum, s) => {
+        if (s.billingCycle === 'monthly') return sum + s.amount
+        if (s.billingCycle === 'yearly') return sum + s.amount / 12
+        if (s.billingCycle === 'weekly') return sum + s.amount * 4
+        return sum
+      }, 0),
+    [subscriptions]
+  )
+
+  const unreadAlerts = useMemo(
+    () => alerts.filter(a => !a.isRead).length,
+    [alerts]
+  )
+
+  const savingsRate = income > 0
+    ? Math.max(0, Math.round(((income - monthExpenses) / income) * 100))
+    : 0
+
+  const liveScore = useMemo(() =>
+    calculateFinancialScore({ income, monthExpenses, totalBalance, accounts, goals, bills })
+    ?? (user?.score ?? 742),
+    [income, monthExpenses, totalBalance, accounts, goals, bills, user?.score]
+  )
+
+  const hasData = accounts.length > 0 || transactions.length > 0 || goals.length > 0
+
+  // Build financial context to send with each message
+  const financialContext = useMemo(() => ({
+    totalBalance,
+    income,
+    monthExpenses,
+    savingsRate,
+    score: liveScore,
+    unreadAlerts,
+    accounts: accounts.map(a => ({ institution: a.institution, balance: a.balance, type: a.type })),
+    goals: goals
+      .filter(g => g.status === 'active')
+      .map(g => ({
+        name: g.name,
+        current: g.currentAmount,
+        target: g.targetAmount,
+        pct: g.targetAmount > 0 ? Math.round((g.currentAmount / g.targetAmount) * 100) : 0,
+        deadline: g.deadline,
+      })),
+    pendingBills: bills
+      .filter(b => b.status === 'pending')
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+      .slice(0, 5)
+      .map(b => ({ name: b.name, amount: b.amount, dueDate: b.dueDate })),
+    subscriptionsMonthly,
+    hasData,
+  }), [totalBalance, income, monthExpenses, savingsRate, liveScore, unreadAlerts, accounts, goals, bills, subscriptionsMonthly, hasData])
+
+  // ── Chat state ───────────────────────────────────────────────────────────────
 
   const initialMessages = useMemo((): ChatMessage[] => [{
     id: 'init-1',
@@ -92,7 +142,12 @@ export default function ChatPage() {
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || isTyping) return
-    const userMsg: ChatMessage = { id: `msg-${Date.now()}`, role: 'user', content: text.trim(), createdAt: new Date().toISOString() }
+    const userMsg: ChatMessage = {
+      id: `msg-${Date.now()}`,
+      role: 'user',
+      content: text.trim(),
+      createdAt: new Date().toISOString(),
+    }
     setMessages(prev => [...prev, userMsg])
     setInput('')
     setIsTyping(true)
@@ -101,16 +156,30 @@ export default function ChatPage() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [...messages, userMsg].map(m => ({ role: m.role, content: m.content })), userId: user?.id }),
+        body: JSON.stringify({
+          messages: [...messages, userMsg].map(m => ({ role: m.role, content: m.content })),
+          userId: user?.id,
+          financialContext,
+        }),
       })
       const data = await res.json()
-      const responseText = data.content || getFallback(text, isGabriel)
+      const responseText = data.content || 'Não consegui processar sua mensagem. Tente novamente.'
       setIsTyping(false)
-      setMessages(prev => [...prev, { id: `msg-${Date.now()}-ai`, role: 'assistant', content: responseText, createdAt: new Date().toISOString() }])
+      setMessages(prev => [...prev, {
+        id: `msg-${Date.now()}-ai`,
+        role: 'assistant',
+        content: responseText,
+        createdAt: new Date().toISOString(),
+      }])
     } catch {
-      await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000))
+      await new Promise(r => setTimeout(r, 1000))
       setIsTyping(false)
-      setMessages(prev => [...prev, { id: `msg-${Date.now()}-ai`, role: 'assistant', content: getFallback(text, isGabriel), createdAt: new Date().toISOString() }])
+      setMessages(prev => [...prev, {
+        id: `msg-${Date.now()}-ai`,
+        role: 'assistant',
+        content: 'Erro de conexão. Verifique sua internet e tente novamente.',
+        createdAt: new Date().toISOString(),
+      }])
     }
   }
 
@@ -126,18 +195,12 @@ export default function ChatPage() {
 
   const clearChat = () => setMessages(initialMessages)
 
-  // User-specific header stats
-  const headerStats = isGabriel
-    ? [
-        { label: 'Saldo', value: 'R$ 5.047,80', color: 'text-slate-300' },
-        { label: 'Score', value: '685', color: 'text-amber-400' },
-        { label: 'Fatura', value: 'R$ 487,50', color: 'text-rose-400' },
-      ]
-    : [
-        { label: 'Saldo', value: 'R$ 18.182,70', color: 'text-slate-300' },
-        { label: 'Score', value: '742', color: 'text-amber-400' },
-        { label: 'Alertas', value: '3', color: 'text-rose-400' },
-      ]
+  // ── Header stats — real data ──────────────────────────────────────────────────
+  const headerStats = [
+    { label: 'Saldo', value: formatCurrency(totalBalance), color: 'text-slate-300' },
+    { label: 'Score', value: `${liveScore}`, color: liveScore >= 750 ? 'text-emerald-400' : liveScore >= 600 ? 'text-amber-400' : 'text-rose-400' },
+    { label: 'Alertas', value: String(unreadAlerts), color: unreadAlerts > 0 ? 'text-rose-400' : 'text-slate-400' },
+  ]
 
   const quickPrompts = user?.quickPrompts ?? []
 
@@ -153,7 +216,9 @@ export default function ChatPage() {
             <h1 className="text-base font-semibold text-white">CFO IA — FinAI</h1>
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-xs text-emerald-400">Online • Contexto de {user?.name ?? 'usuário'} carregado</span>
+              <span className="text-xs text-emerald-400">
+                Online • {hasData ? 'Dados carregados' : 'Adicione seus dados para análise personalizada'}
+              </span>
             </div>
           </div>
         </div>
@@ -163,7 +228,10 @@ export default function ChatPage() {
               <span key={s.label}>{s.label}: <strong className={s.color}>{s.value}</strong></span>
             ))}
           </div>
-          <button onClick={clearChat} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] text-sm text-slate-400 hover:text-slate-200 hover:bg-white/[0.08] transition-all">
+          <button
+            onClick={clearChat}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] text-sm text-slate-400 hover:text-slate-200 hover:bg-white/[0.08] transition-all"
+          >
             <Trash2 className="w-3.5 h-3.5" />Limpar
           </button>
         </div>
@@ -173,19 +241,39 @@ export default function ChatPage() {
       <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-4">
         {messages.map(msg => (
           <div key={msg.id} className={cn('flex gap-3 animate-slide-up', msg.role === 'user' ? 'flex-row-reverse' : 'flex-row')}>
-            <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5', msg.role === 'user' ? 'bg-gradient-to-br from-slate-600 to-slate-700' : 'bg-gradient-to-br from-primary-500 to-primary-700 shadow-glow-sm')}>
+            <div className={cn(
+              'w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5',
+              msg.role === 'user'
+                ? 'bg-gradient-to-br from-slate-600 to-slate-700'
+                : 'bg-gradient-to-br from-primary-500 to-primary-700 shadow-glow-sm'
+            )}>
               {msg.role === 'user'
                 ? <span className="text-xs font-bold text-white">{user?.avatar ?? 'U'}</span>
                 : <Sparkles className="w-4 h-4 text-white" />}
             </div>
             <div className={cn('max-w-[80%] group', msg.role === 'user' ? 'items-end' : 'items-start')}>
-              <div className={cn('px-4 py-3 rounded-2xl', msg.role === 'user' ? 'bg-primary-600/80 text-white rounded-br-sm' : 'bg-[#16161E] border border-white/[0.06] text-slate-300 rounded-bl-sm')}>
-                {msg.role === 'assistant' ? <MessageContent content={msg.content} /> : <p className="text-[15px] leading-relaxed">{msg.content}</p>}
+              <div className={cn(
+                'px-4 py-3 rounded-2xl',
+                msg.role === 'user'
+                  ? 'bg-primary-600/80 text-white rounded-br-sm'
+                  : 'bg-[#16161E] border border-white/[0.06] text-slate-300 rounded-bl-sm'
+              )}>
+                {msg.role === 'assistant'
+                  ? <MessageContent content={msg.content} />
+                  : <p className="text-[15px] leading-relaxed">{msg.content}</p>}
               </div>
-              <div className={cn('flex items-center gap-2 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
-                <span className="text-[10px] text-slate-600">{new Date(msg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+              <div className={cn(
+                'flex items-center gap-2 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity',
+                msg.role === 'user' ? 'justify-end' : 'justify-start'
+              )}>
+                <span className="text-[10px] text-slate-600">
+                  {new Date(msg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                </span>
                 {msg.role === 'assistant' && (
-                  <button onClick={() => copyMessage(msg.id, msg.content)} className="flex items-center gap-1 text-[10px] text-slate-600 hover:text-slate-400 transition-colors">
+                  <button
+                    onClick={() => copyMessage(msg.id, msg.content)}
+                    className="flex items-center gap-1 text-[10px] text-slate-600 hover:text-slate-400 transition-colors"
+                  >
                     {copiedId === msg.id ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                     {copiedId === msg.id ? 'Copiado' : 'Copiar'}
                   </button>
@@ -211,8 +299,11 @@ export default function ChatPage() {
           <p className="text-xs text-slate-600 mb-2 ml-1">Sugestões de perguntas</p>
           <div className="flex flex-wrap gap-2">
             {quickPrompts.map(({ label, prompt }) => (
-              <button key={label} onClick={() => sendMessage(prompt)}
-                className="px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.06] text-xs text-slate-400 hover:text-slate-200 hover:border-primary-500/30 hover:bg-primary-500/5 transition-all">
+              <button
+                key={label}
+                onClick={() => sendMessage(prompt)}
+                className="px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.06] text-xs text-slate-400 hover:text-slate-200 hover:border-primary-500/30 hover:bg-primary-500/5 transition-all"
+              >
                 {label}
               </button>
             ))}
@@ -236,14 +327,19 @@ export default function ChatPage() {
           <button
             onClick={() => sendMessage(input)}
             disabled={!input.trim() || isTyping}
-            className={cn('w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all',
-              input.trim() && !isTyping ? 'bg-primary-600 text-white shadow-glow-sm hover:bg-primary-500' : 'bg-white/[0.06] text-slate-600 cursor-not-allowed'
+            className={cn(
+              'w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all',
+              input.trim() && !isTyping
+                ? 'bg-primary-600 text-white shadow-glow-sm hover:bg-primary-500'
+                : 'bg-white/[0.06] text-slate-600 cursor-not-allowed'
             )}
           >
             {isTyping ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </button>
         </div>
-        <p className="text-[10px] text-slate-700 mt-2 text-center">FinAI usa seus dados financeiros reais • Shift+Enter para nova linha</p>
+        <p className="text-[10px] text-slate-700 mt-2 text-center">
+          FinAI usa seus dados financeiros reais • Shift+Enter para nova linha
+        </p>
       </div>
     </div>
   )
