@@ -103,7 +103,7 @@ export default function FaturasPage() {
   if (!activeAcc) return null
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-[1200px]">
+    <div className="p-4 sm:p-6 space-y-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
