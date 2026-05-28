@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
 
   const bytes = await file.arrayBuffer()
   const base64 = Buffer.from(bytes).toString('base64')
+  const isImage = file.type.startsWith('image/')
 
   const prompt = `Você é um especialista em análise de extratos bancários brasileiros.
 
@@ -45,23 +46,36 @@ IMPORTANTE:
 - Retorne APENAS o JSON, sem texto adicional`
 
   try {
+    // Build content block based on file type
+    // PDFs → document block; images → image block
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const content: any[] = [
-      {
-        type: 'document',
-        source: {
-          type: 'base64',
-          media_type: file.type,
-          data: base64,
-        },
-      },
-      { type: 'text', text: prompt },
-    ]
+    const fileBlock: any = isImage
+      ? {
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: file.type, // image/jpeg | image/png | image/webp
+            data: base64,
+          },
+        }
+      : {
+          type: 'document',
+          source: {
+            type: 'base64',
+            media_type: 'application/pdf',
+            data: base64,
+          },
+        }
 
     const response = await client.messages.create({
       model: 'claude-opus-4-5',
       max_tokens: 4096,
-      messages: [{ role: 'user', content }],
+      messages: [
+        {
+          role: 'user',
+          content: [fileBlock, { type: 'text', text: prompt }],
+        },
+      ],
     })
 
     const text = response.content[0].type === 'text' ? response.content[0].text : ''
@@ -71,6 +85,7 @@ IMPORTANTE:
     const data = JSON.parse(jsonMatch[0])
     return NextResponse.json({ success: true, data })
   } catch (err) {
+    console.error('[documents/analyze] error:', err)
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }
 }

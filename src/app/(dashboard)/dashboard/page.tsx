@@ -13,7 +13,7 @@ import {
   Bell, Target, ChevronRight, Sparkles, RefreshCw,
   DollarSign, PiggyBank, Activity, Pencil, Check, X,
 } from 'lucide-react'
-import { cn, formatCurrency, formatRelativeDate, getScoreColor, getScoreLabel } from '@/lib/utils'
+import { cn, formatCurrency, formatRelativeDate, getScoreColor, getScoreLabel, calculateFinancialScore } from '@/lib/utils'
 import type { Account, Transaction, Goal, Alert } from '@/lib/types'
 
 const MONTH_NAMES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
@@ -56,6 +56,7 @@ export default function DashboardPage() {
   const [transactions] = useUserStorage<Transaction[]>('finai_transactions', [])
   const [goals] = useUserStorage<Goal[]>('finai_goals', [])
   const [alerts] = useUserStorage<Alert[]>('finai_alerts', [])
+  const [bills] = useUserStorage<import('@/lib/types').Bill[]>('finai_bills', [])
 
   const totalBalance = useMemo(() => accounts.reduce((s, a) => s + a.balance, 0), [accounts])
 
@@ -104,7 +105,10 @@ export default function DashboardPage() {
 
   const savings = income - monthExpenses
   const savingsRate = income > 0 ? Math.max(0, Math.round((savings / income) * 100)) : 0
-  const score = user?.score ?? 742
+  const score = useMemo(
+    () => calculateFinancialScore({ income, monthExpenses, totalBalance, accounts, goals, bills }) ?? (user?.score ?? 742),
+    [income, monthExpenses, totalBalance, accounts, goals, bills, user?.score]
+  )
 
   const saveIncome = () => {
     const v = parseFloat(incomeInput)
@@ -113,7 +117,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-[1400px]">
+    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>

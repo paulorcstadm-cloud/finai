@@ -54,7 +54,7 @@ export default function MetasPage() {
   // Guard: empty state
   if (goals.length === 0) {
     return (
-      <div className="p-4 sm:p-6 space-y-6 max-w-[1200px]">
+      <div className="p-4 sm:p-6 space-y-6 max-w-6xl mx-auto">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-white">Metas Financeiras</h1>
@@ -156,7 +156,7 @@ export default function MetasPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-[1200px]">
+    <div className="p-4 sm:p-6 space-y-6 max-w-6xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
